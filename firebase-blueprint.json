@@ -1,0 +1,168 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile collection",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "selectedBabyId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "BabyProfile": {
+      "title": "BabyProfile",
+      "description": "Baby health profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "birthDate": { "type": "string" },
+        "birthWeight": { "type": "number" },
+        "birthLength": { "type": "number" },
+        "birthHeadCirc": { "type": "number" },
+        "bloodType": { "type": "string" },
+        "allergies": { "type": "array", "items": { "type": "string" } },
+        "emergencyContact": { "type": "string" },
+        "notes": { "type": "string" },
+        "familyCode": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "collaborators": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "gender", "birthDate"]
+    },
+    "GrowthRecord": {
+      "title": "GrowthRecord",
+      "description": "Baby growth measurement record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "babyId": { "type": "string" },
+        "date": { "type": "string" },
+        "ageMonths": { "type": "number" },
+        "ageDays": { "type": "number" },
+        "weight": { "type": "number" },
+        "length": { "type": "number" },
+        "headCirc": { "type": "number" },
+        "doctorNote": { "type": "string" },
+        "measuredBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "babyId", "date"]
+    },
+    "DiaryEntry": {
+      "title": "DiaryEntry",
+      "description": "Daily baby care log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "babyId": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "title": { "type": "string" },
+        "note": { "type": "string" },
+        "amountMl": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "temperatureCelsius": { "type": "number" },
+        "diaperColor": { "type": "string" },
+        "diaperTexture": { "type": "string" },
+        "side": { "type": "string" },
+        "foodItems": { "type": "string" },
+        "mood": { "type": "string" },
+        "loggedBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "babyId", "type", "timestamp"]
+    },
+    "VaccineRecord": {
+      "title": "VaccineRecord",
+      "description": "Vaccination administration record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "babyId": { "type": "string" },
+        "vaccineId": { "type": "string" },
+        "vaccineName": { "type": "string" },
+        "dose": { "type": "number" },
+        "targetAgeDescription": { "type": "string" },
+        "isCompleted": { "type": "boolean" },
+        "administeredDate": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "clinicName": { "type": "string" },
+        "batchNumber": { "type": "string" },
+        "reactions": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "babyId", "vaccineId", "vaccineName"]
+    },
+    "MedicalVisit": {
+      "title": "MedicalVisit",
+      "description": "Pediatric clinic visits and prescriptions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "babyId": { "type": "string" },
+        "date": { "type": "string" },
+        "clinic": { "type": "string" },
+        "doctor": { "type": "string" },
+        "reason": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "temperature": { "type": "number" },
+        "weight": { "type": "number" },
+        "prescriptions": { "type": "string" },
+        "doctorAdvice": { "type": "string" },
+        "followUpDate": { "type": "string" },
+        "cost": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "babyId", "date", "clinic", "reason"]
+    },
+    "StickyNote": {
+      "title": "StickyNote",
+      "description": "Caregiver handover sticky notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "babyId": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "color": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "isResolved": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "babyId", "content"]
+    },
+    "FamilyShare": {
+      "title": "FamilyShare",
+      "description": "Family sync share room codes",
+      "type": "object",
+      "properties": {
+        "familyCode": { "type": "string" },
+        "babyId": { "type": "string" },
+        "babyName": { "type": "string" },
+        "createdDate": { "type": "string" },
+        "members": { "type": "array", "items": { "type": "string" } },
+        "lastSyncedAt": { "type": "string" }
+      },
+      "required": ["familyCode", "babyId"]
+    }
+  },
+  "firestore": {
+    "users": { "schema": "UserProfile" },
+    "babies": { "schema": "BabyProfile" },
+    "growth_records": { "schema": "GrowthRecord" },
+    "diary_entries": { "schema": "DiaryEntry" },
+    "vaccine_records": { "schema": "VaccineRecord" },
+    "medical_visits": { "schema": "MedicalVisit" },
+    "sticky_notes": { "schema": "StickyNote" },
+    "family_shares": { "schema": "FamilyShare" }
+  }
+}

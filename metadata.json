@@ -1,0 +1,8 @@
+{
+  "name": "BB-Note",
+  "description": "BB-Note: 專為新手父母打造的溫馨新生兒健康管理系統，整合 WHO 嬰幼兒成長曲線、疫苗接種智能到期提醒、日常哺乳睡眠體溫日記、兒科就診 PDF 報告匯出與家庭雲端備份同步。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
