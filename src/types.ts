@@ -1,142 +1,155 @@
 export type Gender = 'male' | 'female';
+export type BloodType = 'A' | 'B' | 'O' | 'AB' | 'Unknown' | string;
 
 export interface BabyProfile {
   id: string;
   name: string;
-  nickname?: string;
+  nickname: string;
   gender: Gender;
-  birthDate: string; // YYYY-MM-DD
-  birthWeight: number; // in kg
-  birthLength: number; // in cm
-  birthHeadCirc: number; // in cm
-  bloodType?: string;
+  birthday: string; // YYYY-MM-DD
+  birthTime?: string; // HH:mm
+  birthWeight: number; // kg
+  birthLength: number; // cm
+  birthHeadCirc: number; // cm
+  gestationalWeeks: number; // e.g. 39
+  bloodType: BloodType; // 'A' | 'B' | 'O' | 'AB'
+  pediatrician?: string;
+  hospital?: string;
+  medicalRecordNumber?: string;
   allergies?: string[];
-  emergencyContact?: string;
-  notes?: string;
-  avatarUrl?: string;
-  familyCode?: string;
+  emergencyContact: {
+    name: string;
+    relationship: string;
+    phone: string;
+  };
+  avatarUrl: string;
+  themeColor?: string; // 'amber' | 'rose' | 'sky' | 'emerald'
 }
 
 export interface GrowthRecord {
   id: string;
-  babyId: string;
   date: string; // YYYY-MM-DD
-  ageMonths: number;
-  ageDays: number;
+  ageMonths: number; // calculated e.g. 4.2
+  ageDays: number; // e.g. 126
   weight: number; // kg
   length: number; // cm
   headCirc: number; // cm
+  bmi?: number; // weight / (length/100)^2
+  percentileWeight?: number; // 0 - 100
+  percentileLength?: number;
+  percentileHeadCirc?: number;
   doctorNote?: string;
-  measuredBy?: string;
-  createdAt: string;
+  measuredBy?: string; // e.g. 媽媽, 禾馨小兒科
+  photoUrl?: string;
 }
 
-export type DiaryType =
-  | 'feed_bottle'
-  | 'feed_breast'
-  | 'feed_solid'
-  | 'diaper_wet'
-  | 'diaper_dirty'
-  | 'diaper_both'
-  | 'sleep'
-  | 'temperature'
-  | 'medication'
-  | 'tummy_time'
-  | 'milestone'
-  | 'note';
-
-export interface DiaryEntry {
+export interface VaccineScheduleItem {
   id: string;
-  babyId: string;
-  type: DiaryType;
-  timestamp: string; // ISO string
-  title?: string;
-  amountMl?: number;
-  durationMinutes?: number;
-  temperatureCelsius?: number;
-  diaperColor?: string;
-  diaperWetness?: string; // e.g. '微濕', '適中正常', '沈重一大包'
-  diaperStoolTexture?: string; // e.g. '糊狀軟便', '金黃母乳便', '水狀稀便', '偏硬'
-  foodType?: string;
-  medicineName?: string;
-  dosage?: string;
-  note?: string;
-  mood?: 'happy' | 'calm' | 'fussy' | 'crying' | 'sleepy';
-  loggedBy?: string;
-  photoUrl?: string;
-  createdAt: string;
+  name: string;
+  code: string;
+  targetAgeMonths: number;
+  targetAgeLabel: string;
+  isMandatory: boolean;
+  doseNumber: number;
+  totalDoses: number;
+  description: string;
+  diseasePrevented: string;
+  precautions: string;
+  category: 'routine' | 'optional' | 'booster';
 }
 
 export interface VaccineRecord {
   id: string;
-  babyId: string;
+  scheduleId: string;
   vaccineName: string;
-  dose: number;
-  targetAgeMonths: number;
-  targetAgeDescription: string;
+  doseNumber: number;
+  scheduledDate: string;
+  completedDate?: string;
   isCompleted: boolean;
-  scheduledDate?: string;
-  administeredDate?: string;
   clinicName?: string;
-  batchNumber?: string;
-  reactions?: string;
-  isOptional?: boolean; // 自費疫苗
-  category?: 'national_free' | 'recommended_paid' | 'seasonal'; // 疾管署公費 / 自費推薦 / 季節性
-  preventDisease?: string; // 預防疾病說明
-  precautions?: string; // 接種注意事項與衛教
+  lotNumber?: string;
+  doctorName?: string;
+  reactionGrade?: 'none' | 'mild' | 'moderate' | 'severe';
+  feverTemp?: number;
+  reactionNotes?: string;
+  sideEffects?: string[];
+  nextAppointmentDate?: string;
 }
 
-export interface NotificationSettings {
-  enableBrowserPush: boolean;
-  enableSound: boolean;
-  vaccineReminder: boolean;
-  feedReminder: boolean;
-  feedIntervalHours: number; // e.g. 3.5 hours
-  diaperReminder: boolean;
-  diaperIntervalHours: number; // e.g. 2.5 hours
-  feverWarning: boolean;
-  stickyNotesReminder: boolean;
+export type DiaryCategory = 'milestone' | 'daily' | 'feeding' | 'sleep' | 'diaper' | 'temperature' | 'medical' | 'io';
+export type BabyMood = 'happy' | 'calm' | 'playful' | 'sleepy' | 'fussy' | 'curious';
+
+export interface DiaryEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  title: string;
+  content: string;
+  category: DiaryCategory;
+  mood: BabyMood;
+  photos?: string[];
+  milestoneTag?: string; // e.g. "第一次翻身", "第一次長牙", "睡過夜"
+  metrics?: {
+    // Intake (輸入)
+    feedingType?: 'breast' | 'formula' | 'mixed' | 'solid' | 'water' | 'medication' | 'other';
+    feedingAmountMl?: number;
+    feedingDurationMins?: number;
+    solidFoodDetails?: string;
+    waterAmountMl?: number;
+    // Output (輸出)
+    diaperType?: 'wet' | 'dirty' | 'both' | 'clean';
+    diaperWetnessLevel?: 'light' | 'medium' | 'heavy' | 'measured';
+    urineAmountMl?: number;
+    stoolConsistency?: 'watery' | 'loose' | 'soft' | 'formed' | 'hard';
+    stoolColor?: 'yellow' | 'green' | 'brown' | 'white_clay' | 'red_bloody' | 'black' | string;
+    vomitMl?: number;
+    vomitSeverity?: 'spit_up' | 'moderate' | 'projectile';
+    // Routine
+    sleepHours?: number;
+    sleepType?: 'night' | 'nap';
+    temperatureC?: number;
+    medicationTaken?: string;
+  };
+  author?: string; // e.g. 媽媽, 爸爸
+}
+
+export interface Prescription {
+  name: string;
+  dosage: string;
+  frequency: string;
+  days: number;
+  instructions?: string;
 }
 
 export interface MedicalVisit {
   id: string;
-  babyId: string;
-  date: string; // YYYY-MM-DD
-  clinic: string;
-  doctor?: string;
+  date: string;
+  clinicName: string;
+  doctorName?: string;
   reason: string;
-  diagnosis?: string;
-  prescriptions?: string;
-  doctorAdvice?: string;
-  weight?: number;
-  temperature?: number;
-  followUpDate?: string;
-  createdAt: string;
+  diagnosis: string;
+  symptoms?: string[];
+  prescriptions?: Prescription[];
+  temperatureAtVisit?: number;
+  nextFollowUpDate?: string;
+  notes?: string;
+  attachments?: string[];
 }
 
-export interface StickyNote {
-  id: string;
-  babyId: string;
-  content: string;
-  author: string;
-  color?: 'amber' | 'rose' | 'emerald' | 'sky' | 'purple';
-  isPinned?: boolean;
-  isResolved?: boolean;
-  createdAt: string;
-  updatedAt?: string;
+export interface CloudSyncInfo {
+  syncCode: string;
+  lastSyncedAt: string | null;
+  version: number;
+  isSyncing: boolean;
+  statusMessage: string;
+  deviceName: string;
 }
 
-export interface FamilyShareRoom {
-  familyCode: string;
-  babyId: string;
-  babyName: string;
-  updatedBy?: string;
-  lastActive?: string;
-  members?: {
-    userId: string;
-    name: string;
-    role: 'parent' | 'caregiver' | 'doctor';
-    joinedAt: string;
-  }[];
-  createdAt?: string;
+export interface AppDataStore {
+  babyProfile: BabyProfile;
+  growthRecords: GrowthRecord[];
+  vaccineRecords: VaccineRecord[];
+  diaryEntries: DiaryEntry[];
+  medicalVisits: MedicalVisit[];
+  syncInfo: CloudSyncInfo;
 }

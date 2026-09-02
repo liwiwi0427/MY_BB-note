@@ -1,396 +1,413 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  Plus,
-  Trash2,
-  Edit3,
-  Baby,
-  Moon,
-  Sparkles,
-  Droplets,
+import React, { useState, useMemo } from 'react';
+import { 
+  BookHeart, 
+  Sparkles, 
+  Plus, 
+  Baby, 
+  Moon, 
+  Milk, 
+  Thermometer, 
+  Smile, 
+  Clock, 
+  Calendar, 
+  Trash2, 
+  Image as ImageIcon,
+  Heart,
+  Tag,
+  Award,
   Layers,
-  Thermometer,
-  Pill,
-  Smile,
-  Clock,
-  Volume2,
-  VolumeX,
+  Droplets,
+  Activity,
+  ArrowRight
 } from 'lucide-react';
-import type { DiaryEntry, BabyProfile } from '../types';
-import { formatTime, formatDate } from '../utils/dateUtils';
-import { audioSynthesizer } from '../utils/audioSynthesizer';
-import { TotalIOTracker } from './TotalIOTracker';
-import { useToast } from '../context/ToastContext';
+import { BabyProfile, DiaryCategory, DiaryEntry, BabyMood } from '../types';
+import { calculateDailyIO } from '../utils/ioCalculator';
 
 interface DiaryJournalProps {
-  entries: DiaryEntry[];
-  baby: BabyProfile;
-  onAddEntry: () => void;
-  onEditEntry: (entry: DiaryEntry) => void;
-  onDeleteEntry: (id: string) => void;
-  onQuickAdd: (type: DiaryEntry['type'], title: string, amountMl?: number) => void;
+  babyProfile: BabyProfile;
+  diaryEntries: DiaryEntry[];
+  onAddDiary: () => void;
+  onQuickLog: (category: DiaryCategory) => void;
+  onDeleteDiary: (id: string) => void;
+  onOpenTotalIO?: () => void;
 }
 
 export const DiaryJournal: React.FC<DiaryJournalProps> = ({
-  entries,
-  baby,
-  onAddEntry,
-  onEditEntry,
-  onDeleteEntry,
-  onQuickAdd,
+  babyProfile,
+  diaryEntries,
+  onAddDiary,
+  onQuickLog,
+  onDeleteDiary,
+  onOpenTotalIO,
 }) => {
-  const { success } = useToast();
-  const [filterType, setFilterType] = useState<string>('all');
-  const [isWhiteNoiseOn, setIsWhiteNoiseOn] = useState<boolean>(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
-  const toggleNoise = () => {
-    const nextState = !isWhiteNoiseOn;
-    audioSynthesizer.toggleWhiteNoise(nextState);
-    setIsWhiteNoiseOn(nextState);
-    if (nextState) {
-      success('安撫白噪音已開啟', '純物理羊水頻率，有助寶寶放鬆與小睡');
-    }
-  };
+  // Today's Date String
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  const handleQuickLog = (type: DiaryEntry['type'], title: string, amountMl?: number) => {
-    onQuickAdd(type, title, amountMl);
-    success('已快速打卡記錄 ✨', title);
-  };
+  // Calculate Today's Total I/O summary
+  const todayIO = useMemo(() => {
+    const w = babyProfile.birthWeight > 0 ? babyProfile.birthWeight : 4.5;
+    return calculateDailyIO(diaryEntries, todayStr, w);
+  }, [diaryEntries, todayStr, babyProfile.birthWeight]);
 
-  const getEntryIcon = (type: DiaryEntry['type']) => {
-    switch (type) {
-      case 'feed_bottle':
-      case 'feed_breast':
-      case 'feed_solid':
-        return <Baby className="w-5 h-5 text-amber-700" />;
-      case 'sleep':
-        return <Moon className="w-5 h-5 text-indigo-700" />;
-      case 'diaper_wet':
-        return <Droplets className="w-5 h-5 text-sky-600" />;
-      case 'diaper_dirty':
-        return <Sparkles className="w-5 h-5 text-amber-800" />;
-      case 'diaper_both':
-        return <Layers className="w-5 h-5 text-teal-700" />;
-      case 'temperature':
-        return <Thermometer className="w-5 h-5 text-rose-700" />;
-      case 'medication':
-        return <Pill className="w-5 h-5 text-purple-700" />;
-      default:
-        return <Smile className="w-5 h-5 text-emerald-700" />;
-    }
-  };
-
-  const filteredEntries = entries.filter((e) => {
-    if (filterType === 'all') return true;
-    if (filterType === 'feed') return e.type.startsWith('feed_');
-    if (filterType === 'diaper_wet') return e.type === 'diaper_wet' || e.type === 'diaper_both';
-    if (filterType === 'diaper_dirty') return e.type === 'diaper_dirty' || e.type === 'diaper_both';
-    if (filterType === 'sleep') return e.type === 'sleep';
-    if (filterType === 'health') return e.type === 'temperature' || e.type === 'medication';
-    return true;
+  // Sorted entries by date & time desc
+  const sortedEntries = [...diaryEntries].sort((a, b) => {
+    const timeA = new Date(`${a.date}T${a.time || '12:00'}`).getTime();
+    const timeB = new Date(`${b.date}T${b.time || '12:00'}`).getTime();
+    return timeB - timeA;
   });
 
-  return (
-    <div className="space-y-6">
-      
-      {/* Responsive Grid for PC (Desktop 2-column / Mobile 1-column) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Column: Timeline Feed (8 cols on lg) */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-4">
-          
-          {/* Timeline Header & Search / Filters */}
-          <div className="bg-[#F9F6F0] rounded-[28px] border border-[#D9D1C2] p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center space-x-2.5">
-              <h2 className="text-base sm:text-lg font-serif font-bold text-[#2A2723]">
-                成長日常時間軸
-              </h2>
-              <span className="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-white text-[#2A2723] border border-[#D9D1C2] shadow-2xs">
-                {filteredEntries.length} 筆
-              </span>
-            </div>
+  const filteredEntries = sortedEntries.filter((entry) => {
+    if (selectedCategory === 'all') return true;
+    if (selectedCategory === 'milestone') return entry.category === 'milestone' || !!entry.milestoneTag;
+    return entry.category === selectedCategory;
+  });
 
-            {/* Filter Pills with motion */}
-            <div className="flex items-center space-x-1 bg-[#EBE7DF]/80 p-1 rounded-full border border-[#D9D1C2] overflow-x-auto shadow-2xs relative">
-              {[
-                { id: 'all', label: '全部' },
-                { id: 'feed', label: '🍼 哺乳飲食' },
-                { id: 'diaper_wet', label: '💧 尿布濕濕' },
-                { id: 'diaper_dirty', label: '💩 尿布便便' },
-                { id: 'sleep', label: '🌙 睡眠' },
-                { id: 'health', label: '🌡️ 體溫用藥' },
-              ].map((f) => {
-                const isActive = filterType === f.id;
-                return (
-                  <button
-                    key={f.id}
-                    onClick={() => setFilterType(f.id)}
-                    className={`relative px-3 py-1 rounded-full text-xs font-sans whitespace-nowrap transition-colors cursor-pointer select-none z-10 ${
-                      isActive
-                        ? 'text-[#F9F6F0] font-medium'
-                        : 'text-[#6B6457] hover:text-[#2A2723] hover:bg-white/40'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeFilterPill"
-                        className="absolute inset-0 bg-[#2A2723] rounded-full shadow-2xs"
-                        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-                      />
-                    )}
-                    <span className="relative z-10">{f.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+  const moodEmojis: Record<BabyMood, { emoji: string; label: string; bg: string }> = {
+    happy: { emoji: '😊', label: '心情極佳', bg: 'bg-[#F2EDE4] text-[#2A2723] border border-[#D9D1C2]' },
+    playful: { emoji: '🧸', label: '活力滿滿', bg: 'bg-[#F2E6E6] text-[#6B3E3E] border border-[#E0D0D0]' },
+    calm: { emoji: '🌿', label: '安穩乖巧', bg: 'bg-[#E6EBE6] text-[#3E4A3E] border border-[#D5DDD5]' },
+    sleepy: { emoji: '😴', label: '想睡愛睏', bg: 'bg-[#E6E9F2] text-[#3A4050] border border-[#D5D9E6]' },
+    fussy: { emoji: '🥺', label: '哭鬧撒嬌', bg: 'bg-[#F5EEDB] text-[#5C4D2E] border border-[#E5DBBF]' },
+    curious: { emoji: '🐣', label: '好奇探索', bg: 'bg-[#EBF2EA] text-[#354D35] border border-[#D0E0CE]' },
+  };
+
+  const categoryLabels: Record<DiaryCategory, { label: string; color: string }> = {
+    milestone: { label: '🌟 成長里程碑', color: 'bg-[#2A2723] text-[#F9F6F0] border-[#4A453E]' },
+    daily: { label: '📔 生活日記', color: 'bg-[#F2EDE4] text-[#4A453E] border-[#D9D1C2]' },
+    feeding: { label: '🍼 餵奶飲食', color: 'bg-[#F5EEDB] text-[#5C4D2E] border-[#E5DBBF]' },
+    sleep: { label: '💤 睡眠紀錄', color: 'bg-[#E6E9F2] text-[#3A4050] border-[#D5D9E6]' },
+    diaper: { label: '🧻 尿布排便', color: 'bg-[#E6EBE6] text-[#3E4A3E] border-[#D5DDD5]' },
+    temperature: { label: '🌡️ 體溫量測', color: 'bg-[#F2E6E6] text-[#6B3E3E] border-[#E0D0D0]' },
+    medical: { label: '🏥 就診用藥', color: 'bg-[#EAE6F2] text-[#423854] border-[#D7CEE5]' },
+    io: { label: '💧 Total I/O', color: 'bg-sky-50 text-sky-800 border-sky-200' },
+  };
+
+  return (
+    <div className="space-y-8">
+      
+      {/* Top Controls & Quick Routine Logger Header */}
+      <div className="bg-white rounded-[36px] p-6 sm:p-8 border border-[#EBE7DF] shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-[#EBE7DF]">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#2A2723]">
+              {babyProfile.nickname || babyProfile.name} 的成長日常日記
+            </h2>
+            <p className="text-xs sm:text-sm text-[#6B6457] mt-1 font-sans">
+              點滴記錄第一次翻身、餵奶量、尿布排泄與日常照護
+            </p>
           </div>
 
-          {/* Diary List Feed with Animations */}
-          <div className="space-y-3">
-            <AnimatePresence mode="popLayout">
-              {filteredEntries.length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  className="bg-[#F9F6F0] rounded-[28px] border border-[#D9D1C2] p-10 text-center text-[#8C8475] font-sans shadow-xs"
-                >
-                  <Baby className="w-10 h-10 mx-auto mb-2.5 text-[#D1CEC4]" />
-                  <p className="text-sm font-semibold text-[#2A2723]">尚無此分類日常紀錄</p>
-                  <p className="text-xs text-[#8C8475] mt-1">點擊右側「詳細紀錄」或「1秒極速打卡」開始記錄寶寶的一天</p>
-                </motion.div>
-              ) : (
-                filteredEntries.map((entry) => (
-                  <motion.div
-                    key={entry.id}
-                    layout
-                    initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-                    transition={{ type: 'spring', damping: 28, stiffness: 350 }}
-                    className="bg-[#F9F6F0] rounded-2xl sm:rounded-[24px] border border-[#D9D1C2] p-4 sm:p-5 shadow-xs hover:border-[#8C8475] hover:shadow-sm transition-colors flex items-start justify-between gap-4 group"
-                  >
-                    <div className="flex items-start space-x-3.5 flex-1 min-w-0">
-                      <motion.div
-                        whileHover={{ scale: 1.08, rotate: 3 }}
-                        className="w-11 h-11 rounded-2xl bg-white border border-[#EBE7DF] flex items-center justify-center shrink-0 shadow-2xs mt-0.5"
-                      >
-                        {getEntryIcon(entry.type)}
-                      </motion.div>
+          <button
+            id="write-diary-btn"
+            onClick={onAddDiary}
+            className="flex items-center gap-2 px-5 py-3 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] hover:bg-[#3D3833] text-[#F9F6F0] shadow-sm transition-all self-start sm:self-auto active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>寫一篇新日記</span>
+          </button>
+        </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          <span className="font-serif font-bold text-sm sm:text-base text-[#2A2723]">
-                            {entry.title || '日常紀錄'}
-                          </span>
-                          <span className="text-[11px] font-mono text-[#8C8475] flex items-center gap-1 bg-white/70 px-2 py-0.5 rounded-md border border-[#EBE7DF]">
-                            <Clock className="w-3 h-3" />
-                            {formatDate(entry.timestamp)} {formatTime(entry.timestamp)}
-                          </span>
-                          {entry.loggedBy && (
-                            <span className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-[#EBE7DF] text-[#6B6457] border border-[#D9D1C2]">
-                              由 {entry.loggedBy} 記錄
-                            </span>
-                          )}
-                        </div>
+        {/* Quick Routine Shortcut Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+          <button
+            onClick={() => onQuickLog('feeding')}
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#F5EEDB] hover:bg-[#EDE3CB] text-[#2A2723] border border-[#E5DBBF] transition-all group text-left"
+          >
+            <span className="text-[10px] font-sans uppercase tracking-widest text-[#8C8475] mb-2">飲食紀錄</span>
+            <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
+              <Milk className="w-4 h-4 text-[#8C7A58]" strokeWidth={1.5} />
+              <span>快速記奶量</span>
+            </div>
+          </button>
 
-                        {/* Badges details */}
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          {entry.amountMl && (
-                            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-amber-100/80 text-amber-900 border border-amber-300 shadow-2xs">
-                              🥛 {entry.amountMl} ml
-                            </span>
-                          )}
-                          {entry.durationMinutes && (
-                            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-indigo-100/80 text-indigo-900 border border-indigo-300 shadow-2xs">
-                              ⏱️ {entry.durationMinutes} 分鐘
-                            </span>
-                          )}
-                          {entry.temperatureCelsius && (
-                            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-rose-100/80 text-rose-900 border border-rose-300 shadow-2xs">
-                              🌡️ {entry.temperatureCelsius} °C
-                            </span>
-                          )}
+          <button
+            onClick={() => onQuickLog('diaper')}
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#E6EBE6] hover:bg-[#D8E2D8] text-[#2A2723] border border-[#D5DDD5] transition-all group text-left"
+          >
+            <span className="text-[10px] font-sans uppercase tracking-widest text-[#6E7D6E] mb-2">尿布排便</span>
+            <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
+              <Baby className="w-4 h-4 text-[#5A6D5A]" strokeWidth={1.5} />
+              <span>快速換尿布</span>
+            </div>
+          </button>
 
-                          {/* Diaper Wet Badges */}
-                          {entry.type === 'diaper_wet' && (
-                            <span className="text-xs font-sans font-medium px-2.5 py-0.5 rounded-lg bg-sky-100/90 text-sky-950 border border-sky-300 shadow-2xs flex items-center gap-1">
-                              💧 尿布濕濕 {entry.diaperWetness ? `(${entry.diaperWetness})` : '(正常尿尿)'}
-                            </span>
-                          )}
+          <button
+            onClick={() => onQuickLog('sleep')}
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#E6E9F2] hover:bg-[#D9DEEE] text-[#2A2723] border border-[#D5D9E6] transition-all group text-left"
+          >
+            <span className="text-[10px] font-sans uppercase tracking-widest text-[#757E94] mb-2">睡眠時長</span>
+            <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
+              <Moon className="w-4 h-4 text-[#5F6B8A]" strokeWidth={1.5} />
+              <span>快速記小睡</span>
+            </div>
+          </button>
 
-                          {/* Diaper Dirty Badges */}
-                          {entry.type === 'diaper_dirty' && (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-sans font-medium px-2.5 py-0.5 rounded-lg bg-amber-100/90 text-amber-950 border border-amber-300 shadow-2xs flex items-center gap-1">
-                                💩 尿布便便 {entry.diaperColor ? `· ${entry.diaperColor}` : ''}
-                              </span>
-                              {entry.diaperStoolTexture && (
-                                <span className="text-[11px] font-sans px-2 py-0.5 rounded-md bg-white/90 text-amber-900 border border-amber-200">
-                                  {entry.diaperStoolTexture}
-                                </span>
-                              )}
-                            </div>
-                          )}
+          <button
+            onClick={() => onQuickLog('temperature')}
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#F2E6E6] hover:bg-[#E8D7D7] text-[#2A2723] border border-[#E0D0D0] transition-all group text-left"
+          >
+            <span className="text-[10px] font-sans uppercase tracking-widest text-[#947575] mb-2">體溫監測</span>
+            <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
+              <Thermometer className="w-4 h-4 text-[#8C5D5D]" strokeWidth={1.5} />
+              <span>快速量體溫</span>
+            </div>
+          </button>
+        </div>
 
-                          {/* Diaper Both Badges */}
-                          {entry.type === 'diaper_both' && (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-sans font-medium px-2.5 py-0.5 rounded-lg bg-teal-100/90 text-teal-950 border border-teal-300 shadow-2xs">
-                                🧻 雙重更換 (💧濕 + 💩便)
-                              </span>
-                              {entry.diaperColor && (
-                                <span className="text-[11px] font-sans px-2 py-0.5 rounded-md bg-white/90 text-teal-900 border border-teal-200">
-                                  便色: {entry.diaperColor}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {entry.note && (
-                          <p className="text-xs text-[#524C42] mt-2.5 font-sans leading-relaxed bg-white/80 p-3 rounded-xl border border-[#EBE7DF] shadow-2xs">
-                            {entry.note}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center space-x-1 shrink-0">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => onEditEntry(entry)}
-                        className="p-2 text-[#8C8475] hover:text-[#2A2723] hover:bg-white rounded-xl transition-colors shadow-2xs cursor-pointer"
-                        title="修改此紀錄"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => onDeleteEntry(entry.id)}
-                        className="p-2 text-[#D1CEC4] hover:text-[#C4685D] hover:bg-white rounded-xl transition-colors shadow-2xs cursor-pointer"
-                        title="刪除此紀錄"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </AnimatePresence>
+        {/* TODAY TOTAL I/O QUICK WIDGET BAR */}
+        <div className="mt-5 p-4 rounded-[24px] bg-gradient-to-r from-sky-50/90 via-sky-50/50 to-amber-50/60 border border-sky-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-sky-100 text-sky-800 shrink-0">
+              <Droplets className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold text-[#2A2723] flex items-center gap-2">
+                <span>今日 24h Total I/O 即時概況</span>
+                <span className={`text-[10px] font-medium px-2 py-0.2 rounded-full border ${todayIO.hydrationStatusColor}`}>
+                  {todayIO.hydrationStatusLabel}
+                </span>
+              </div>
+              <div className="text-[11px] text-[#6B6457] mt-0.5 flex items-center gap-3 flex-wrap">
+                <span>🥛 總攝入 (Intake): <strong className="text-sky-900 font-mono">{todayIO.totalIntakeMl} ml</strong></span>
+                <span>🧷 總排出 (Output): <strong className="text-amber-900 font-mono">{todayIO.totalOutputMl} ml</strong></span>
+                <span>尿布: <strong className="font-mono">{todayIO.totalDiaperCount} 片</strong> (重尿布 {todayIO.heavyDiaperCount}/6)</span>
+                <span>排尿率: <strong className="text-emerald-800 font-mono">{todayIO.urineHourlyRate} ml/kg/hr</strong></span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Sticky Quick Actions & Live Stats Dashboard (5 cols on lg) */}
-        <div className="lg:col-span-5 xl:col-span-4 space-y-5 lg:sticky lg:top-20">
-          
-          {/* 1-Second Quick Action Dock */}
-          <div className="bg-[#F9F6F0] rounded-[28px] border border-[#D9D1C2] p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-3.5">
-              <span className="text-xs sm:text-sm font-serif font-bold text-[#2A2723] flex items-center gap-1.5">
-                ⚡ 1 秒極速打卡
-              </span>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={toggleNoise}
-                className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-sans transition-colors shadow-2xs cursor-pointer ${
-                  isWhiteNoiseOn
-                    ? 'bg-purple-100 text-purple-900 border border-purple-300 animate-pulse'
-                    : 'bg-white text-[#6B6457] border border-[#D9D1C2] hover:bg-[#EBE7DF]'
-                }`}
-                title="純物理子宮羊水白噪音生成器，安撫寶寶小睡"
-              >
-                {isWhiteNoiseOn ? <Volume2 className="w-3.5 h-3.5 text-purple-700" /> : <VolumeX className="w-3.5 h-3.5" />}
-                <span className="font-medium">{isWhiteNoiseOn ? '白噪音播放中' : '安撫白噪音'}</span>
-              </motion.button>
-            </div>
+        {/* Filter Categories Chips */}
+        <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-1 pt-1">
+          {[
+            { id: 'all', label: '全部動態' },
+            { id: 'milestone', label: '🌟 里程碑' },
+            { id: 'feeding', label: '🍼 飲食' },
+            { id: 'diaper', label: '🧷 尿布/排泄' },
+            { id: 'sleep', label: '💤 睡眠' },
+            { id: 'temperature', label: '🌡️ 體溫' },
+            { id: 'io', label: '💧 Total I/O' },
+            { id: 'daily', label: '📔 心情' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-4 py-1.5 rounded-full text-xs font-sans uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
+                selectedCategory === cat.id
+                  ? 'bg-[#2A2723] text-[#F9F6F0] shadow-2xs font-bold'
+                  : 'bg-[#F2EDE4] text-[#6B6457] hover:bg-[#E6DFD1] hover:text-[#2A2723]'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Feed Bottle */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => handleQuickLog('feed_bottle', '瓶餵配方奶 120ml', 120)}
-                className="p-3.5 rounded-2xl bg-white border border-[#EBE7DF] hover:border-amber-300 hover:bg-amber-50/60 text-left transition-colors group shadow-2xs cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-xs text-[#8C8475] mb-1">
-                  <span>🍼 瓶餵</span>
-                  <span className="font-mono text-amber-800 font-bold">+120ml</span>
-                </div>
-                <div className="text-xs font-bold text-[#2A2723]">記錄餵奶</div>
-              </motion.button>
+      {/* Diary Feed Stream */}
+      {filteredEntries.length === 0 ? (
+        <div className="bg-white rounded-[36px] p-12 text-center border border-[#EBE7DF] shadow-xs">
+          <BookHeart className="w-12 h-12 text-[#D9D1C2] mx-auto mb-3" strokeWidth={1.25} />
+          <h3 className="text-xl font-serif italic text-[#2A2723]">此分類尚無日記記錄</h3>
+          <p className="text-xs text-[#8C8475] mt-1 max-w-sm mx-auto font-sans">
+            點擊上方「寫一篇新日記」或快速記錄按鈕，隨手記錄寶寶的可愛日常與重要里程碑！
+          </p>
+          <button
+            onClick={onAddDiary}
+            className="mt-6 px-6 py-2.5 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-sans uppercase tracking-wider hover:bg-[#3D3833]"
+          >
+            立即寫日記
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {filteredEntries.map((entry) => {
+            const mood = moodEmojis[entry.mood] || moodEmojis.happy;
+            const categoryInfo = categoryLabels[entry.category] || categoryLabels.daily;
 
-              {/* Diaper Wet */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => handleQuickLog('diaper_wet', '換濕尿布 (正常尿尿)')}
-                className="p-3.5 rounded-2xl bg-white border border-sky-200 hover:border-sky-400 hover:bg-sky-50/70 text-left transition-colors group shadow-2xs cursor-pointer"
+            return (
+              <article
+                key={entry.id}
+                className="bg-white rounded-[32px] p-6 sm:p-7 border border-[#EBE7DF] hover:border-[#D1CEC4] shadow-xs transition-all duration-300 group"
               >
-                <div className="flex items-center justify-between text-xs text-sky-700 mb-1">
-                  <span className="flex items-center gap-1 font-medium">💧 尿布</span>
-                  <span className="text-sky-800 font-bold text-[11px] bg-sky-100 px-1.5 py-0.2 rounded">噓噓</span>
-                </div>
-                <div className="text-xs font-bold text-sky-950">換濕尿布</div>
-              </motion.button>
+                {/* Entry Header Ribbon */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F2EDE4]">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs font-mono font-medium text-[#2A2723] flex items-center gap-1.5 bg-[#F2EDE4] px-3 py-1 rounded-full">
+                      <Calendar className="w-3.5 h-3.5 text-[#8C8475]" strokeWidth={1.5} />
+                      {entry.date}
+                    </span>
+                    <span className="text-xs text-[#8C8475] flex items-center gap-1 font-mono">
+                      <Clock className="w-3 h-3 text-[#A69D8D]" strokeWidth={1.5} />
+                      {entry.time || '12:00'}
+                    </span>
+                    <span className={`text-[11px] font-sans uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${categoryInfo.color}`}>
+                      {categoryInfo.label}
+                    </span>
+                    {entry.milestoneTag && (
+                      <span className="text-[11px] font-sans uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#D9D1C2] text-[#2A2723] border border-[#C7BBA8] flex items-center gap-1 font-bold">
+                        <Award className="w-3 h-3 text-[#2A2723]" strokeWidth={1.75} />
+                        {entry.milestoneTag}
+                      </span>
+                    )}
+                  </div>
 
-              {/* Diaper Dirty */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => handleQuickLog('diaper_dirty', '換便便尿布 (金黃正常)')}
-                className="p-3.5 rounded-2xl bg-white border border-amber-200 hover:border-amber-400 hover:bg-amber-50/70 text-left transition-colors group shadow-2xs cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-xs text-amber-800 mb-1">
-                  <span className="flex items-center gap-1 font-medium">💩 尿布</span>
-                  <span className="text-amber-900 font-bold text-[11px] bg-amber-100 px-1.5 py-0.2 rounded">大便</span>
-                </div>
-                <div className="text-xs font-bold text-amber-950">換便便尿布</div>
-              </motion.button>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    {/* Mood pill */}
+                    <span className={`text-xs px-3 py-0.5 rounded-full font-medium flex items-center gap-1.5 ${mood.bg}`}>
+                      <span>{mood.emoji}</span>
+                      <span>{mood.label}</span>
+                    </span>
 
-              {/* Sleep */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => handleQuickLog('sleep', '入睡小憩 60分鐘', 60)}
-                className="p-3.5 rounded-2xl bg-white border border-[#EBE7DF] hover:border-indigo-300 hover:bg-indigo-50/60 text-left transition-colors group shadow-2xs cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-xs text-[#8C8475] mb-1">
-                  <span>🌙 睡眠</span>
-                  <span className="font-mono text-indigo-800 font-bold">+60分</span>
-                </div>
-                <div className="text-xs font-bold text-[#2A2723]">記錄入眠小睡</div>
-              </motion.button>
+                    {/* Author */}
+                    {entry.author && (
+                      <span className="text-[11px] text-[#8C8475] font-sans bg-[#F9F6F0] px-2.5 py-0.5 rounded-full border border-[#EBE7DF]">
+                        {entry.author} 記
+                      </span>
+                    )}
 
-              {/* Custom Detailed Entry */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={onAddEntry}
-                className="col-span-2 p-3.5 rounded-2xl bg-[#2A2723] text-[#F9F6F0] hover:bg-[#4A453E] text-left transition-colors flex items-center justify-between shadow-2xs cursor-pointer"
-              >
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm">📝</span>
-                  <div>
-                    <div className="text-xs font-bold text-[#F9F6F0]">自訂日常日記詳細打卡</div>
-                    <div className="text-[10px] text-[#D9D1C2]">包含母乳親餵、大便顏色卡、體溫、用藥與備註</div>
+                    {/* Delete button */}
+                    <button
+                      onClick={() => onDeleteDiary(entry.id)}
+                      className="p-1.5 text-[#D1CEC4] hover:text-[#C4685D] rounded-full hover:bg-[#F2E6E6] transition-colors opacity-70 group-hover:opacity-100"
+                      title="刪除此篇日記"
+                    >
+                      <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                    </button>
                   </div>
                 </div>
-                <Plus className="w-4 h-4 text-[#FAF3EB]" />
-              </motion.button>
-            </div>
-          </div>
 
-          {/* 24-Hour Total I/O Calculation Widget */}
-          <TotalIOTracker entries={entries} />
+                {/* Entry Title & Content */}
+                <div className="mt-4">
+                  <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#2A2723] tracking-tight">
+                    {entry.title}
+                  </h3>
+                  <p className="text-sm text-[#4A453E] leading-relaxed mt-2.5 whitespace-pre-wrap font-sans">
+                    {entry.content}
+                  </p>
+                </div>
 
+                {/* Metrics Badges Container */}
+                {entry.metrics && (
+                  <div className="mt-4 pt-3.5 border-t border-[#F2EDE4] flex items-center gap-2.5 flex-wrap text-xs font-sans">
+                    {entry.metrics.feedingAmountMl && (
+                      <span className="bg-sky-50 text-sky-950 border border-sky-200 px-3 py-1 rounded-full flex items-center gap-1.5 font-medium">
+                        <Milk className="w-3.5 h-3.5 text-sky-700" strokeWidth={1.5} />
+                        {entry.metrics.feedingType === 'formula' ? '配方奶' : entry.metrics.feedingType === 'solid' ? '副食品' : '母乳'}：
+                        <strong className="font-mono">{entry.metrics.feedingAmountMl} ml</strong>
+                        {entry.metrics.feedingDurationMins && ` (${entry.metrics.feedingDurationMins}分鐘)`}
+                      </span>
+                    )}
+                    {entry.metrics.waterAmountMl && (
+                      <span className="bg-sky-50 text-sky-950 border border-sky-200 px-3 py-1 rounded-full">
+                        💧 水/電解水：<strong className="font-mono">{entry.metrics.waterAmountMl} ml</strong>
+                      </span>
+                    )}
+                    {entry.metrics.solidFoodDetails && (
+                      <span className="bg-[#F5EEDB] text-[#2A2723] border border-[#E5DBBF] px-3 py-1 rounded-full">
+                        🥄 食材：{entry.metrics.solidFoodDetails}
+                      </span>
+                    )}
+                    {entry.metrics.diaperType && (
+                      <span className="bg-amber-50 text-amber-950 border border-amber-200 px-3 py-1 rounded-full flex items-center gap-1.5 font-medium">
+                        <Droplets className="w-3.5 h-3.5 text-amber-700" />
+                        尿布：{entry.metrics.diaperType === 'wet' ? '純尿尿' : entry.metrics.diaperType === 'dirty' ? '大便' : '尿尿+大便'}
+                        {entry.metrics.diaperWetnessLevel && (
+                          <span className="text-[11px] text-amber-800">
+                            ({entry.metrics.diaperWetnessLevel === 'heavy' ? '重尿布 ~100ml' : entry.metrics.diaperWetnessLevel === 'medium' ? '中度 ~60ml' : '輕度 ~30ml'})
+                          </span>
+                        )}
+                        {entry.metrics.stoolConsistency && (
+                          <span className="text-[11px] text-amber-900 font-bold ml-1">
+                            [{entry.metrics.stoolConsistency === 'soft' ? '正常軟便' : entry.metrics.stoolConsistency === 'watery' ? '水便' : '稀便'}]
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {entry.metrics.vomitSeverity && entry.metrics.vomitSeverity !== 'none' && (
+                      <span className="bg-rose-50 text-rose-900 border border-rose-200 px-3 py-1 rounded-full">
+                        🤮 溢/吐奶：{entry.metrics.vomitSeverity === 'spit_up' ? '輕微溢奶 (~15ml)' : entry.metrics.vomitSeverity === 'moderate' ? '中度吐奶 (~40ml)' : '噴射狀嘔吐 (~80ml)'}
+                      </span>
+                    )}
+                    {entry.metrics.sleepHours && (
+                      <span className="bg-[#E6E9F2] text-[#2A2723] border border-[#D5D9E6] px-3 py-1 rounded-full flex items-center gap-1.5">
+                        <Moon className="w-3.5 h-3.5 text-[#5F6B8A]" strokeWidth={1.5} />
+                        {entry.metrics.sleepType === 'night' ? '夜間長睡眠' : '日間小睡'}：
+                        <strong className="font-mono">{entry.metrics.sleepHours} 小時</strong>
+                      </span>
+                    )}
+                    {entry.metrics.temperatureC && (
+                      <span className={`px-3 py-1 rounded-full flex items-center gap-1.5 border ${
+                        entry.metrics.temperatureC >= 38.0
+                          ? 'bg-[#F2E6E6] text-[#6B3E3E] border-[#E0D0D0] font-bold'
+                          : entry.metrics.temperatureC >= 37.5
+                          ? 'bg-[#F5EEDB] text-[#5C4D2E] border-[#E5DBBF]'
+                          : 'bg-[#E6EBE6] text-[#3E4A3E] border-[#D5DDD5]'
+                      }`}>
+                        <Thermometer className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        體溫：<strong className="font-mono">{entry.metrics.temperatureC} °C</strong>
+                        {entry.metrics.temperatureC >= 38.0 ? '(發燒)' : entry.metrics.temperatureC >= 37.5 ? '(微熱)' : '(正常)'}
+                      </span>
+                    )}
+                    {entry.metrics.medicationTaken && (
+                      <span className="bg-[#EAE6F2] text-[#423854] border border-[#D7CEE5] px-3 py-1 rounded-full">
+                        💊 用藥/處置：{entry.metrics.medicationTaken}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Photo Attachments Gallery */}
+                {entry.photos && entry.photos.length > 0 && (
+                  <div className="mt-5 flex items-center gap-3 overflow-x-auto pb-1">
+                    {entry.photos.map((imgUrl, pIdx) => (
+                      <div
+                        key={pIdx}
+                        onClick={() => setSelectedPhoto(imgUrl)}
+                        className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-[20px] overflow-hidden border border-[#D1CEC4] p-1 bg-[#F9F6F0] shadow-2xs cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt="日記照片"
+                          className="w-full h-full object-cover rounded-[16px]"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+              </article>
+            );
+          })}
         </div>
+      )}
 
-      </div>
+      {/* Photo Lightbox Preview Modal */}
+      {selectedPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2A2723]/90 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <div className="relative max-w-2xl w-full bg-transparent p-2">
+            <img
+              src={selectedPhoto}
+              alt="放大檢視照片"
+              className="w-full h-auto max-h-[85vh] object-contain rounded-[32px] shadow-2xl border border-[#4A453E]"
+              referrerPolicy="no-referrer"
+            />
+            <button
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#2A2723] text-white hover:bg-black font-bold flex items-center justify-center border border-[#4A453E]"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

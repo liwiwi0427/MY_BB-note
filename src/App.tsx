@@ -1,772 +1,377 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type {
-  BabyProfile,
-  GrowthRecord,
-  DiaryEntry,
-  VaccineRecord,
-  MedicalVisit,
-  StickyNote,
-} from './types';
-import {
-  initAuth,
-  syncBabyProfileToCloud,
-  listenToBabyProfile,
-  saveGrowthRecordToCloud,
-  deleteGrowthRecordFromCloud,
-  listenToGrowthRecords,
-  saveDiaryEntryToCloud,
-  deleteDiaryEntryFromCloud,
-  listenToDiaryEntries,
-  saveVaccineRecordToCloud,
-  listenToVaccineRecords,
-  saveMedicalVisitToCloud,
-  deleteMedicalVisitFromCloud,
-  listenToMedicalVisits,
-  saveStickyNoteToCloud,
-  deleteStickyNoteFromCloud,
-  listenToStickyNotes,
-  registerFamilyShareRoom,
-  joinFamilyByCode,
-  uploadAllLocalDataToCloud,
-  downloadAllCloudData,
-  checkBabyExistsInCloud,
-} from './firebase';
-import { localStorageService } from './utils/storage';
-import {
-  evaluateAllSmartReminders,
-  getStoredNotificationSettings,
-  saveNotificationSettings,
-  sendBrowserPushNotification,
-  type AppNotification,
-} from './utils/notificationService';
-import type { NotificationSettings } from './types';
-import { Navbar } from './components/Navbar';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Navbar, 
+  TabType 
+} from './components/Navbar';
 import { BabyHeader } from './components/BabyHeader';
-import { NotificationBanner } from './components/NotificationBanner';
-import { NotificationModal } from './components/NotificationModal';
 import { DiaryJournal } from './components/DiaryJournal';
 import { GrowthTracker } from './components/GrowthTracker';
 import { VaccineTracker } from './components/VaccineTracker';
-import { StickyNotesBoard } from './components/StickyNotesBoard';
-import { Toolbox } from './components/Toolbox';
-import { EditProfileModal } from './components/EditProfileModal';
-import { AddDiaryModal } from './components/AddDiaryModal';
-import { AddGrowthModal } from './components/AddGrowthModal';
-import { AddMedicalVisitModal } from './components/AddMedicalVisitModal';
-import { PediatricReportModal } from './components/PediatricReportModal';
+import { MedicalPassport } from './components/MedicalPassport';
 import { CloudSyncModal } from './components/CloudSyncModal';
-import { DataBackupModal } from './components/DataBackupModal';
-import { ToastProvider } from './context/ToastContext';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import type { ParsedImportResult } from './utils/dataImportExport';
+import { PediatricReportModal } from './components/PediatricReportModal';
+import { AddGrowthModal } from './components/AddGrowthModal';
+import { AddDiaryModal } from './components/AddDiaryModal';
+import { AddMedicalVisitModal } from './components/AddMedicalVisitModal';
+import { EditProfileModal } from './components/EditProfileModal';
+import { Toolbox } from './components/Toolbox';
 
-function BabyAppContent() {
-  // Navigation
-  const [activeTab, setActiveTab] = useState<'diary' | 'growth' | 'vaccines' | 'notes' | 'toolbox'>('diary');
+import { 
+  AppDataStore, 
+  BabyProfile, 
+  GrowthRecord, 
+  VaccineRecord, 
+  DiaryEntry, 
+  MedicalVisit, 
+  DiaryCategory 
+} from './types';
+import { 
+  loadAppData, 
+  saveAppData, 
+  pushToCloud, 
+  pullFromCloud 
+} from './utils/storage';
+import { 
+  ShieldCheck, 
+  Heart, 
+  PhoneCall, 
+  FileText, 
+  Info,
+  CheckCircle2,
+  Calendar
+} from 'lucide-react';
 
-  // Core Data States (Initialized from local storage cache)
-  const [baby, setBaby] = useState<BabyProfile>(() => localStorageService.getBabyProfile());
-  const [growthRecords, setGrowthRecords] = useState<GrowthRecord[]>(() => localStorageService.getGrowthRecords());
-  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>(() => localStorageService.getDiaryEntries());
-  const [vaccineRecords, setVaccineRecords] = useState<VaccineRecord[]>(() => localStorageService.getVaccineRecords());
-  const [medicalVisits, setMedicalVisits] = useState<MedicalVisit[]>(() => localStorageService.getMedicalVisits());
-  const [stickyNotes, setStickyNotes] = useState<StickyNote[]>(() => localStorageService.getStickyNotes());
+export default function App() {
+  // Main Data Store State
+  const [appData, setAppData] = useState<AppDataStore>(() => loadAppData());
+  const [activeTab, setActiveTab] = useState<TabType>('diary');
 
-  // Notification Settings
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() =>
-    getStoredNotificationSettings()
-  );
-
-  // Cloud & Sync States
-  const [familyCode, setFamilyCode] = useState<string>(() => localStorageService.getFamilyCode());
-  const [memberName, setMemberName] = useState<string>(() => localStorageService.getMemberName());
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [isOnline, setIsOnline] = useState<boolean>(true);
-
-  // Modals
-  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
-  const [isAddDiaryOpen, setIsAddDiaryOpen] = useState(false);
-  const [editingDiaryEntry, setEditingDiaryEntry] = useState<DiaryEntry | null>(null);
+  // Modal States
+  const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [isAddGrowthOpen, setIsAddGrowthOpen] = useState(false);
-  const [editingGrowthRecord, setEditingGrowthRecord] = useState<GrowthRecord | null>(null);
-  const [isAddMedicalVisitOpen, setIsAddMedicalVisitOpen] = useState(false);
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
-  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [isAddDiaryOpen, setIsAddDiaryOpen] = useState(false);
+  const [diaryInitialCategory, setDiaryInitialCategory] = useState<DiaryCategory>('daily');
+  const [isAddVisitOpen, setIsAddVisitOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
-  // Dismissed notifications list
-  const [dismissedNotiIds, setDismissedNotiIds] = useState<string[]>([]);
-  const [lastPushedIds, setLastPushedIds] = useState<string[]>([]);
+  // Toast notification
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Network connectivity status listener
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    setIsOnline(navigator.onLine);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+  const showToast = useCallback((msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => {
+      setToastMsg((prev) => (prev === msg ? null : prev));
+    }, 3000);
   }, []);
 
-  // 1. Initial Auth and Realtime Subscriptions setup
+  // Save to LocalStorage whenever appData updates
   useEffect(() => {
-    let unsubs: (() => void)[] = [];
+    saveAppData(appData);
+  }, [appData]);
 
-    const initFirebase = async () => {
-      try {
-        await initAuth();
-        setIsOnline(navigator.onLine);
-
-        // Register room code in cloud
-        if (familyCode) {
-          await registerFamilyShareRoom(familyCode, baby.id, baby.name, memberName);
-        }
-
-        // Check if cloud already has this baby profile
-        const exists = await checkBabyExistsInCloud(baby.id);
-        if (!exists) {
-          // First time initial seeding of local state to Firestore
-          await uploadAllLocalDataToCloud(
-            baby,
-            growthRecords,
-            diaryEntries,
-            vaccineRecords,
-            medicalVisits,
-            stickyNotes
-          );
-        }
-
-        // Realtime Listeners with direct reactive data flow
-        const unsubBaby = listenToBabyProfile(baby.id, (cloudBaby) => {
-          if (cloudBaby) {
-            setBaby(cloudBaby);
-            localStorageService.saveBabyProfile(cloudBaby);
-          }
-        });
-        unsubs.push(unsubBaby);
-
-        const unsubGrowth = listenToGrowthRecords(baby.id, (records) => {
-          setGrowthRecords(records);
-          localStorageService.saveGrowthRecords(records);
-        });
-        unsubs.push(unsubGrowth);
-
-        const unsubDiary = listenToDiaryEntries(baby.id, (entries) => {
-          setDiaryEntries(entries);
-          localStorageService.saveDiaryEntries(entries);
-        });
-        unsubs.push(unsubDiary);
-
-        const unsubVaccines = listenToVaccineRecords(baby.id, (records) => {
-          setVaccineRecords(records);
-          localStorageService.saveVaccineRecords(records);
-        });
-        unsubs.push(unsubVaccines);
-
-        const unsubVisits = listenToMedicalVisits(baby.id, (visits) => {
-          setMedicalVisits(visits);
-          localStorageService.saveMedicalVisits(visits);
-        });
-        unsubs.push(unsubVisits);
-
-        const unsubSticky = listenToStickyNotes(baby.id, (notes) => {
-          setStickyNotes(notes);
-          localStorageService.saveStickyNotes(notes);
-        });
-        unsubs.push(unsubSticky);
-      } catch (err) {
-        console.warn('Firebase initialization or listeners notice:', err);
-      }
-    };
-
-    initFirebase();
-
-    return () => {
-      unsubs.forEach((u) => u());
-    };
-  }, [baby.id, familyCode]);
-
-  // Ensure robust multi-tier persistent backup in localStorage
-  useEffect(() => {
-    localStorageService.saveEmergencyBackup({
-      baby,
-      growthRecords,
-      diaryEntries,
-      vaccineRecords,
-      medicalVisits,
-      stickyNotes,
-      familyCode,
-    });
-  }, [baby, growthRecords, diaryEntries, vaccineRecords, medicalVisits, stickyNotes, familyCode]);
-
-  // Notifications calculation & Smart Push Reminders
-  const notifications = useMemo(() => {
-    const raw = evaluateAllSmartReminders(vaccineRecords, diaryEntries, baby, notificationSettings);
-    return raw.filter((n) => !dismissedNotiIds.includes(n.id));
-  }, [vaccineRecords, diaryEntries, baby, notificationSettings, dismissedNotiIds]);
-
-  // Background Push Interval (Runs every 60 seconds to check due reminders)
-  useEffect(() => {
-    if (!notificationSettings.enableBrowserPush) return;
-
-    const checkAndPush = () => {
-      const activeReminders = evaluateAllSmartReminders(
-        vaccineRecords,
-        diaryEntries,
-        baby,
-        notificationSettings
-      );
-
-      for (const reminder of activeReminders) {
-        if (!lastPushedIds.includes(reminder.id) && !dismissedNotiIds.includes(reminder.id)) {
-          sendBrowserPushNotification(reminder.title, {
-            body: reminder.message,
-            playSound: notificationSettings.enableSound,
-          });
-          setLastPushedIds((prev) => [...prev.slice(-20), reminder.id]);
-          break; // Avoid spamming multiple pushes in same tick
-        }
-      }
-    };
-
-    // Initial check on load/update
-    checkAndPush();
-
-    const intervalId = setInterval(checkAndPush, 60000); // Check every 1 minute
-    return () => clearInterval(intervalId);
-  }, [vaccineRecords, diaryEntries, baby, notificationSettings, lastPushedIds, dismissedNotiIds]);
-
-  const handleDismissNotification = (id: string) => {
-    setDismissedNotiIds((prev) => [...prev, id]);
-  };
-
-  const handleSaveNotificationSettings = (newSettings: NotificationSettings) => {
-    setNotificationSettings(newSettings);
-    saveNotificationSettings(newSettings);
-  };
-
-  // Profile Save
-  const handleSaveBabyProfile = async (updated: BabyProfile) => {
-    setBaby(updated);
-    localStorageService.saveBabyProfile(updated);
-    await syncBabyProfileToCloud(updated);
-  };
-
-  // Diary Handlers
-  const handleSaveDiaryEntry = async (entryData: Partial<DiaryEntry>) => {
-    if (editingDiaryEntry) {
-      const updated: DiaryEntry = {
-        ...editingDiaryEntry,
-        ...entryData,
-      } as DiaryEntry;
-
-      const next = diaryEntries.map((e) => (e.id === updated.id ? updated : e));
-      setDiaryEntries(next);
-      localStorageService.saveDiaryEntries(next);
-      await saveDiaryEntryToCloud(updated);
-      setEditingDiaryEntry(null);
+  // Push to Cloud Handler
+  const handlePushSync = async () => {
+    const res = await pushToCloud(appData);
+    if (res.success) {
+      setAppData((prev) => ({
+        ...prev,
+        syncInfo: {
+          ...prev.syncInfo,
+          lastSyncedAt: res.lastSyncedAt || new Date().toISOString(),
+          version: res.version || prev.syncInfo.version + 1,
+        },
+      }));
+      showToast('☁️ 雲端同步備份成功！');
     } else {
-      const newEntry: DiaryEntry = {
-        id: `diary-${Date.now()}`,
-        babyId: baby.id,
-        type: entryData.type || 'feed_bottle',
-        timestamp: entryData.timestamp || new Date().toISOString(),
-        title: entryData.title,
-        note: entryData.note,
-        amountMl: entryData.amountMl,
-        durationMinutes: entryData.durationMinutes,
-        temperatureCelsius: entryData.temperatureCelsius,
-        diaperColor: entryData.diaperColor,
-        mood: entryData.mood || 'happy',
-        loggedBy: entryData.loggedBy || memberName || '媽媽',
-        createdAt: new Date().toISOString(),
-      };
-
-      const next = [newEntry, ...diaryEntries];
-      setDiaryEntries(next);
-      localStorageService.saveDiaryEntries(next);
-      await saveDiaryEntryToCloud(newEntry);
+      throw new Error(res.error || '雲端同步失敗');
     }
   };
 
-  const handleDeleteDiaryEntry = async (id: string) => {
-    const next = diaryEntries.filter((e) => e.id !== id);
-    setDiaryEntries(next);
-    localStorageService.saveDiaryEntries(next);
-    await deleteDiaryEntryFromCloud(id);
-  };
-
-  const handleQuickAddDiary = async (type: DiaryEntry['type'], title: string, amountMl?: number) => {
-    const newEntry: DiaryEntry = {
-      id: `diary-${Date.now()}`,
-      babyId: baby.id,
-      type,
-      timestamp: new Date().toISOString(),
-      title,
-      amountMl,
-      durationMinutes: type === 'sleep' ? 60 : undefined,
-      mood: 'happy',
-      loggedBy: memberName || '照護者',
-      createdAt: new Date().toISOString(),
-    };
-    const next = [newEntry, ...diaryEntries];
-    setDiaryEntries(next);
-    localStorageService.saveDiaryEntries(next);
-    await saveDiaryEntryToCloud(newEntry);
-  };
-
-  // Growth Handlers
-  const handleSaveGrowthRecord = async (recordData: Partial<GrowthRecord>) => {
-    if (editingGrowthRecord) {
-      const updated: GrowthRecord = {
-        ...editingGrowthRecord,
-        ...recordData,
-      } as GrowthRecord;
-      const next = growthRecords.map((r) => (r.id === updated.id ? updated : r));
-      setGrowthRecords(next);
-      localStorageService.saveGrowthRecords(next);
-      await saveGrowthRecordToCloud(updated);
-      setEditingGrowthRecord(null);
-    } else {
-      const newRec: GrowthRecord = {
-        id: `growth-${Date.now()}`,
-        babyId: baby.id,
-        date: recordData.date || new Date().toISOString().split('T')[0],
-        ageMonths: recordData.ageMonths || 0,
-        ageDays: recordData.ageDays || 0,
-        weight: recordData.weight || 0,
-        length: recordData.length || 0,
-        headCirc: recordData.headCirc || 0,
-        doctorNote: recordData.doctorNote,
-        measuredBy: recordData.measuredBy || memberName,
-        createdAt: new Date().toISOString(),
-      };
-      const next = [...growthRecords, newRec];
-      setGrowthRecords(next);
-      localStorageService.saveGrowthRecords(next);
-      await saveGrowthRecordToCloud(newRec);
-    }
-  };
-
-  const handleDeleteGrowthRecord = async (id: string) => {
-    const next = growthRecords.filter((r) => r.id !== id);
-    setGrowthRecords(next);
-    localStorageService.saveGrowthRecords(next);
-    await deleteGrowthRecordFromCloud(id);
-  };
-
-  // Vaccine Handlers
-  const handleToggleVaccine = async (record: VaccineRecord) => {
-    const nextState = !record.isCompleted;
-    const updated: VaccineRecord = {
-      ...record,
-      isCompleted: nextState,
-      administeredDate: nextState ? new Date().toISOString().split('T')[0] : undefined,
-      clinicName: nextState ? record.clinicName || '兒科小兒專科門診' : undefined,
-    };
-    const next = vaccineRecords.map((v) => (v.id === record.id ? updated : v));
-    setVaccineRecords(next);
-    localStorageService.saveVaccineRecords(next);
-    await saveVaccineRecordToCloud(updated);
-  };
-
-  const handleUpdateVaccine = async (updated: VaccineRecord) => {
-    const next = vaccineRecords.map((v) => (v.id === updated.id ? updated : v));
-    setVaccineRecords(next);
-    localStorageService.saveVaccineRecords(next);
-    await saveVaccineRecordToCloud(updated);
-  };
-
-  const handleResetSchedule = async (newSchedule: VaccineRecord[]) => {
-    setVaccineRecords(newSchedule);
-    localStorageService.saveVaccineRecords(newSchedule);
-    for (const v of newSchedule) {
-      await saveVaccineRecordToCloud(v);
-    }
-  };
-
-  // Medical Visits Handlers
-  const handleSaveMedicalVisit = async (visitData: Partial<MedicalVisit>) => {
-    const newVisit: MedicalVisit = {
-      id: `med-${Date.now()}`,
-      babyId: baby.id,
-      date: visitData.date || new Date().toISOString().split('T')[0],
-      clinic: visitData.clinic || '兒科門診',
-      doctor: visitData.doctor,
-      reason: visitData.reason || '常規門診',
-      diagnosis: visitData.diagnosis,
-      temperature: visitData.temperature,
-      weight: visitData.weight,
-      prescriptions: visitData.prescriptions,
-      doctorAdvice: visitData.doctorAdvice,
-      createdAt: new Date().toISOString(),
-    };
-    const next = [newVisit, ...medicalVisits];
-    setMedicalVisits(next);
-    localStorageService.saveMedicalVisits(next);
-    await saveMedicalVisitToCloud(newVisit);
-  };
-
-  const handleDeleteMedicalVisit = async (id: string) => {
-    const next = medicalVisits.filter((m) => m.id !== id);
-    setMedicalVisits(next);
-    localStorageService.saveMedicalVisits(next);
-    await deleteMedicalVisitFromCloud(id);
-  };
-
-  // Sticky Notes Handlers
-  const handleAddStickyNote = async (
-    content: string,
-    author: string,
-    color: StickyNote['color']
-  ) => {
-    const newNote: StickyNote = {
-      id: `note-${Date.now()}`,
-      babyId: baby.id,
-      content,
-      author,
-      color,
-      isPinned: false,
-      isResolved: false,
-      createdAt: new Date().toISOString(),
-    };
-    const next = [newNote, ...stickyNotes];
-    setStickyNotes(next);
-    localStorageService.saveStickyNotes(next);
-    await saveStickyNoteToCloud(newNote);
-  };
-
-  const handleToggleStickyResolve = async (id: string) => {
-    const target = stickyNotes.find((n) => n.id === id);
-    if (!target) return;
-    const updated: StickyNote = {
-      ...target,
-      isResolved: !target.isResolved,
-      updatedAt: new Date().toISOString(),
-    };
-    const next = stickyNotes.map((n) => (n.id === id ? updated : n));
-    setStickyNotes(next);
-    localStorageService.saveStickyNotes(next);
-    await saveStickyNoteToCloud(updated);
-  };
-
-  const handleDeleteStickyNote = async (id: string) => {
-    const next = stickyNotes.filter((n) => n.id !== id);
-    setStickyNotes(next);
-    localStorageService.saveStickyNotes(next);
-    await deleteStickyNoteFromCloud(id);
-  };
-
-  // Family Sync Configuration
-  const handleSaveSyncConfig = async (newCode: string, newMember: string) => {
-    setFamilyCode(newCode);
-    setMemberName(newMember);
-    localStorageService.saveFamilyCode(newCode);
-    localStorageService.saveMemberName(newMember);
-
-    const updatedBaby = { ...baby, familyCode: newCode };
-    setBaby(updatedBaby);
-    localStorageService.saveBabyProfile(updatedBaby);
-
-    await registerFamilyShareRoom(newCode, baby.id, baby.name, newMember);
-    await syncBabyProfileToCloud(updatedBaby);
-  };
-
-  const handleJoinFamilyByCode = async (code: string): Promise<boolean> => {
-    setIsSyncing(true);
-    const room = await joinFamilyByCode(code, memberName);
-    if (room && room.babyId) {
-      setFamilyCode(code);
-      localStorageService.saveFamilyCode(code);
-
-      // Download all cloud records for this baby
-      const cloudData = await downloadAllCloudData(room.babyId);
-      if (cloudData.baby) {
-        setBaby(cloudData.baby);
-        localStorageService.saveBabyProfile(cloudData.baby);
-      }
-      setGrowthRecords(cloudData.growthRecords || []);
-      localStorageService.saveGrowthRecords(cloudData.growthRecords || []);
-      setDiaryEntries(cloudData.diaryEntries || []);
-      localStorageService.saveDiaryEntries(cloudData.diaryEntries || []);
-      setVaccineRecords(cloudData.vaccineRecords || []);
-      localStorageService.saveVaccineRecords(cloudData.vaccineRecords || []);
-      setMedicalVisits(cloudData.medicalVisits || []);
-      localStorageService.saveMedicalVisits(cloudData.medicalVisits || []);
-      setStickyNotes(cloudData.stickyNotes || []);
-      localStorageService.saveStickyNotes(cloudData.stickyNotes || []);
-
-      setIsSyncing(false);
+  // Pull from Cloud Handler
+  const handlePullSync = async (syncCode: string): Promise<boolean> => {
+    const res = await pullFromCloud(syncCode);
+    if (res.success && res.data) {
+      setAppData(res.data);
+      showToast(`☁️ 已成功載入雲端備份 (${syncCode})！`);
       return true;
     }
-    setIsSyncing(false);
     return false;
   };
 
-  const handleForceSync = async () => {
-    setIsSyncing(true);
-    await uploadAllLocalDataToCloud(
-      baby,
-      growthRecords,
-      diaryEntries,
-      vaccineRecords,
-      medicalVisits,
-      stickyNotes
-    );
-    setIsSyncing(false);
+  // Update Sync Code
+  const handleUpdateSyncCode = (newCode: string) => {
+    setAppData((prev) => ({
+      ...prev,
+      syncInfo: {
+        ...prev.syncInfo,
+        syncCode: newCode,
+      },
+    }));
+    showToast(`已設定新家庭同步碼：${newCode}`);
   };
 
-  // Handle Full JSON Import
-  const handleImportData = async (imported: ParsedImportResult) => {
-    setIsSyncing(true);
-
-    // 1. Update all React states
-    setBaby(imported.baby);
-    setGrowthRecords(imported.growthRecords);
-    setDiaryEntries(imported.diaryEntries);
-    setVaccineRecords(imported.vaccineRecords);
-    setMedicalVisits(imported.medicalVisits);
-    setStickyNotes(imported.stickyNotes);
-    if (imported.familyCode) {
-      setFamilyCode(imported.familyCode);
-      localStorageService.saveFamilyCode(imported.familyCode);
-    }
-
-    // 2. Persist to localStorage
-    localStorageService.saveBabyProfile(imported.baby);
-    localStorageService.saveGrowthRecords(imported.growthRecords);
-    localStorageService.saveDiaryEntries(imported.diaryEntries);
-    localStorageService.saveVaccineRecords(imported.vaccineRecords);
-    localStorageService.saveMedicalVisits(imported.medicalVisits);
-    localStorageService.saveStickyNotes(imported.stickyNotes);
-
-    // 3. Sync to Firebase Cloud Firestore
-    try {
-      await registerFamilyShareRoom(
-        imported.familyCode || familyCode,
-        imported.baby.id,
-        imported.baby.name,
-        memberName
-      );
-      await uploadAllLocalDataToCloud(
-        imported.baby,
-        imported.growthRecords,
-        imported.diaryEntries,
-        imported.vaccineRecords,
-        imported.medicalVisits,
-        imported.stickyNotes
-      );
-    } catch (e) {
-      console.warn('Firebase cloud sync after import notice:', e);
-    } finally {
-      setIsSyncing(false);
-    }
+  // Restore from File
+  const handleRestoreFromFile = (importedData: AppDataStore) => {
+    setAppData(importedData);
+    showToast('已從 JSON 檔案成功還原全部記錄！');
   };
 
-  // Latest Growth Record for header display
-  const latestGrowth = growthRecords.length > 0 ? growthRecords[growthRecords.length - 1] : undefined;
+  // Profile Save
+  const handleSaveProfile = (updatedProfile: BabyProfile) => {
+    setAppData((prev) => ({
+      ...prev,
+      babyProfile: updatedProfile,
+    }));
+    showToast('已更新寶寶基本資料！');
+  };
+
+  // Growth Record Actions
+  const handleAddGrowthRecord = (newRec: GrowthRecord) => {
+    setAppData((prev) => ({
+      ...prev,
+      growthRecords: [...prev.growthRecords, newRec],
+    }));
+    showToast(`已儲存生長記錄：體重 ${newRec.weight}kg (P${newRec.percentileWeight})`);
+  };
+
+  const handleDeleteGrowthRecord = (id: string) => {
+    setAppData((prev) => ({
+      ...prev,
+      growthRecords: prev.growthRecords.filter((r) => r.id !== id),
+    }));
+    showToast('已刪除該筆生長記錄');
+  };
+
+  // Vaccine Actions
+  const handleToggleVaccine = (record: VaccineRecord) => {
+    setAppData((prev) => {
+      const exists = prev.vaccineRecords.some((r) => r.id === record.id);
+      const updated = exists
+        ? prev.vaccineRecords.map((r) => (r.id === record.id ? record : r))
+        : [...prev.vaccineRecords, record];
+      return {
+        ...prev,
+        vaccineRecords: updated,
+      };
+    });
+    showToast(record.isCompleted ? `🎉 已完成接種：${record.vaccineName}！` : `已更新：${record.vaccineName}`);
+  };
+
+  const handleUpdateVaccineRecord = (record: VaccineRecord) => {
+    setAppData((prev) => {
+      const exists = prev.vaccineRecords.some((r) => r.id === record.id);
+      const updated = exists
+        ? prev.vaccineRecords.map((r) => (r.id === record.id ? record : r))
+        : [...prev.vaccineRecords, record];
+      return {
+        ...prev,
+        vaccineRecords: updated,
+      };
+    });
+    showToast(`已儲存【${record.vaccineName}】詳細醫囑與批號！`);
+  };
+
+  // Diary Actions
+  const handleAddDiaryEntry = (newEntry: DiaryEntry) => {
+    setAppData((prev) => ({
+      ...prev,
+      diaryEntries: [newEntry, ...prev.diaryEntries],
+    }));
+    showToast('📔 溫馨日記已發佈！');
+  };
+
+  const handleDeleteDiaryEntry = (id: string) => {
+    setAppData((prev) => ({
+      ...prev,
+      diaryEntries: prev.diaryEntries.filter((e) => e.id !== id),
+    }));
+    showToast('已刪除該篇日記');
+  };
+
+  const handleQuickLog = (category: DiaryCategory) => {
+    setDiaryInitialCategory(category);
+    setIsAddDiaryOpen(true);
+  };
+
+  // Medical Visit Actions
+  const handleAddMedicalVisit = (newVisit: MedicalVisit) => {
+    setAppData((prev) => ({
+      ...prev,
+      medicalVisits: [newVisit, ...prev.medicalVisits],
+    }));
+    showToast(`已儲存 ${newVisit.clinicName} 就診與用藥紀錄！`);
+  };
+
+  const handleDeleteMedicalVisit = (id: string) => {
+    setAppData((prev) => ({
+      ...prev,
+      medicalVisits: prev.medicalVisits.filter((v) => v.id !== id),
+    }));
+    showToast('已刪除該門診就診紀錄');
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4EFE6] text-[#2A2723]">
+    <div className="min-h-screen bg-[#F9F6F0] text-[#2A2723] flex flex-col selection:bg-[#E6DFD1] selection:text-[#2A2723]">
       
-      {/* Navigation */}
+      {/* Toast Notification Banner */}
+      {toastMsg && (
+        <div className="fixed top-20 right-4 z-50 bg-[#2A2723] text-[#F9F6F0] text-xs sm:text-sm font-medium px-5 py-3 rounded-full shadow-2xl border border-[#4A453E] flex items-center gap-2.5 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-[#D9D1C2] shrink-0" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Main Top Navigation Header */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isSyncing={isSyncing}
-        onOpenSyncModal={() => setIsSyncModalOpen(true)}
-        onOpenBackupModal={() => setIsBackupModalOpen(true)}
-        onOpenNotificationModal={() => setIsNotificationModalOpen(true)}
-        notificationCount={notifications.length}
-        isOnline={isOnline}
+        onSelectTab={setActiveTab}
       />
 
-      {/* Main Layout Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5 pb-24 md:pb-10">
+      {/* Main Application Content Container */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Baby Info Top Header */}
+        {/* Baby Profile & Quick Status Header (Visible on all views) */}
         <BabyHeader
-          baby={baby}
-          latestGrowthRecord={latestGrowth}
-          vaccineRecords={vaccineRecords}
-          onOpenEditProfile={() => setIsEditProfileOpen(true)}
-          onOpenReportModal={() => setIsReportModalOpen(true)}
-          onOpenBackupModal={() => setIsBackupModalOpen(true)}
-          onNavigateToNotes={() => setActiveTab('notes')}
+          babyProfile={appData.babyProfile}
+          growthRecords={appData.growthRecords}
+          vaccineRecords={appData.vaccineRecords}
+          onEditProfile={() => setIsEditProfileOpen(true)}
+          onOpenPediatricReport={() => setIsReportOpen(true)}
+          onOpenGrowthTracker={() => setActiveTab('growth')}
+          onOpenVaccineTracker={() => setActiveTab('vaccines')}
         />
 
-        {/* Actionable Notification Banner */}
-        <NotificationBanner
-          notifications={notifications}
-          onDismiss={handleDismissNotification}
-          onActionClick={(noti) => {
-            if (noti.targetTab) {
-              setActiveTab(noti.targetTab as any);
-            } else {
-              setActiveTab('vaccines');
-            }
-          }}
-          onOpenNotificationModal={() => setIsNotificationModalOpen(true)}
-        />
-
-        {/* Dynamic Tab Views */}
+        {/* Tab Views */}
         {activeTab === 'diary' && (
           <DiaryJournal
-            entries={diaryEntries}
-            baby={baby}
-            onAddEntry={() => {
-              setEditingDiaryEntry(null);
+            babyProfile={appData.babyProfile}
+            diaryEntries={appData.diaryEntries}
+            onAddDiary={() => {
+              setDiaryInitialCategory('daily');
               setIsAddDiaryOpen(true);
             }}
-            onEditEntry={(entry) => {
-              setEditingDiaryEntry(entry);
-              setIsAddDiaryOpen(true);
-            }}
-            onDeleteEntry={handleDeleteDiaryEntry}
-            onQuickAdd={handleQuickAddDiary}
+            onQuickLog={handleQuickLog}
+            onDeleteDiary={handleDeleteDiaryEntry}
+            onOpenTotalIO={() => setActiveTab('tools')}
           />
         )}
 
         {activeTab === 'growth' && (
           <GrowthTracker
-            growthRecords={growthRecords}
-            baby={baby}
-            onAddRecord={() => {
-              setEditingGrowthRecord(null);
-              setIsAddGrowthOpen(true);
-            }}
-            onEditRecord={(rec) => {
-              setEditingGrowthRecord(rec);
-              setIsAddGrowthOpen(true);
-            }}
+            babyProfile={appData.babyProfile}
+            growthRecords={appData.growthRecords}
+            onAddRecord={() => setIsAddGrowthOpen(true)}
             onDeleteRecord={handleDeleteGrowthRecord}
           />
         )}
 
         {activeTab === 'vaccines' && (
           <VaccineTracker
-            vaccineRecords={vaccineRecords}
-            medicalVisits={medicalVisits}
-            baby={baby}
-            onToggleVaccine={handleToggleVaccine}
-            onUpdateVaccine={handleUpdateVaccine}
-            onResetSchedule={handleResetSchedule}
-            onAddMedicalVisit={() => setIsAddMedicalVisitOpen(true)}
-            onDeleteMedicalVisit={handleDeleteMedicalVisit}
-            onOpenReportModal={() => setIsReportModalOpen(true)}
+            babyProfile={appData.babyProfile}
+            vaccineRecords={appData.vaccineRecords}
+            onToggleComplete={handleToggleVaccine}
+            onUpdateRecord={handleUpdateVaccineRecord}
           />
         )}
 
-        {activeTab === 'notes' && (
-          <StickyNotesBoard
-            notes={stickyNotes}
-            onAddNote={handleAddStickyNote}
-            onToggleResolve={handleToggleStickyResolve}
-            onDeleteNote={handleDeleteStickyNote}
-            currentMemberName={memberName}
+        {activeTab === 'medical' && (
+          <MedicalPassport
+            babyProfile={appData.babyProfile}
+            medicalVisits={appData.medicalVisits}
+            diaryEntries={appData.diaryEntries}
+            onAddVisit={() => setIsAddVisitOpen(true)}
+            onDeleteVisit={handleDeleteMedicalVisit}
+            onOpenPediatricReport={() => setIsReportOpen(true)}
           />
         )}
 
-        {activeTab === 'toolbox' && <Toolbox baby={baby} />}
+        {activeTab === 'tools' && (
+          <Toolbox
+            babyProfile={appData.babyProfile}
+            growthRecords={appData.growthRecords}
+            vaccineRecords={appData.vaccineRecords}
+            medicalVisits={appData.medicalVisits}
+            diaryEntries={appData.diaryEntries}
+            syncInfo={appData.syncInfo}
+            onOpenPediatricReport={() => setIsReportOpen(true)}
+            onOpenCloudSync={() => setIsCloudSyncOpen(true)}
+            onAddDiaryEntry={handleAddDiaryEntry}
+          />
+        )}
 
       </main>
 
-      {/* Modals */}
-      <NotificationModal
-        isOpen={isNotificationModalOpen}
-        onClose={() => setIsNotificationModalOpen(false)}
-        settings={notificationSettings}
-        onSaveSettings={handleSaveNotificationSettings}
-        activeNotifications={notifications}
-        onDismissNotification={handleDismissNotification}
-        onSelectNotificationTab={(tab) => setActiveTab(tab as any)}
+      {/* Footer & Medical Reference Info */}
+      <footer className="bg-white/90 border-t border-[#EBE7DF] py-8 mt-12 text-xs text-[#8C8475] font-sans">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-2">
+            <Heart className="w-4 h-4 text-[#8C5D5D] fill-[#8C5D5D]" />
+            <span className="font-serif font-bold text-sm text-[#2A2723]">暖暖初生・新生兒健康守護日記</span>
+            <span>— 陪伴寶寶每一步安心成長</span>
+          </div>
+
+          <div className="flex items-center gap-4 text-[11px] text-[#8C8475] flex-wrap justify-center font-sans">
+          </div>
+        </div>
+      </footer>
+
+      {/* MODALS */}
+
+      {/* Cloud Sync Modal */}
+      <CloudSyncModal
+        isOpen={isCloudSyncOpen}
+        onClose={() => setIsCloudSyncOpen(false)}
+        appData={appData}
+        onPushSync={handlePushSync}
+        onPullSync={handlePullSync}
+        onRestoreFromFile={handleRestoreFromFile}
+        onUpdateSyncCode={handleUpdateSyncCode}
       />
+
+      {/* Pediatric Clinical Consultation PDF Report Modal */}
+      <PediatricReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        babyProfile={appData.babyProfile}
+        growthRecords={appData.growthRecords}
+        vaccineRecords={appData.vaccineRecords}
+        medicalVisits={appData.medicalVisits}
+        diaryEntries={appData.diaryEntries}
+      />
+
+      {/* Add Growth Measurement Modal */}
+      <AddGrowthModal
+        isOpen={isAddGrowthOpen}
+        onClose={() => setIsAddGrowthOpen(false)}
+        babyProfile={appData.babyProfile}
+        onSave={handleAddGrowthRecord}
+      />
+
+      {/* Add Diary Entry Modal */}
+      <AddDiaryModal
+        isOpen={isAddDiaryOpen}
+        onClose={() => setIsAddDiaryOpen(false)}
+        babyProfile={appData.babyProfile}
+        initialCategory={diaryInitialCategory}
+        onSave={handleAddDiaryEntry}
+      />
+
+      {/* Add Medical Visit Modal */}
+      <AddMedicalVisitModal
+        isOpen={isAddVisitOpen}
+        onClose={() => setIsAddVisitOpen(false)}
+        onSave={handleAddMedicalVisit}
+      />
+
+      {/* Edit Baby Profile Modal */}
       <EditProfileModal
         isOpen={isEditProfileOpen}
         onClose={() => setIsEditProfileOpen(false)}
-        baby={baby}
-        onSave={handleSaveBabyProfile}
-      />
-
-      <AddDiaryModal
-        isOpen={isAddDiaryOpen}
-        onClose={() => {
-          setIsAddDiaryOpen(false);
-          setEditingDiaryEntry(null);
-        }}
-        onSave={handleSaveDiaryEntry}
-        editingEntry={editingDiaryEntry}
-        currentMemberName={memberName}
-      />
-
-      <AddGrowthModal
-        isOpen={isAddGrowthOpen}
-        onClose={() => {
-          setIsAddGrowthOpen(false);
-          setEditingGrowthRecord(null);
-        }}
-        baby={baby}
-        onSave={handleSaveGrowthRecord}
-        editingRecord={editingGrowthRecord}
-      />
-
-      <AddMedicalVisitModal
-        isOpen={isAddMedicalVisitOpen}
-        onClose={() => setIsAddMedicalVisitOpen(false)}
-        onSave={handleSaveMedicalVisit}
-      />
-
-      <PediatricReportModal
-        isOpen={isReportModalOpen}
-        onClose={() => setIsReportModalOpen(false)}
-        baby={baby}
-        growthRecords={growthRecords}
-        medicalVisits={medicalVisits}
-        vaccineRecords={vaccineRecords}
-      />
-
-      <CloudSyncModal
-        isOpen={isSyncModalOpen}
-        onClose={() => setIsSyncModalOpen(false)}
-        baby={baby}
-        familyCode={familyCode}
-        memberName={memberName}
-        onSaveConfig={handleSaveSyncConfig}
-        onJoinFamily={handleJoinFamilyByCode}
-        onForceSync={handleForceSync}
-        onOpenBackupModal={() => setIsBackupModalOpen(true)}
-        isSyncing={isSyncing}
-        isOnline={isOnline}
-      />
-
-      <DataBackupModal
-        isOpen={isBackupModalOpen}
-        onClose={() => setIsBackupModalOpen(false)}
-        baby={baby}
-        growthRecords={growthRecords}
-        diaryEntries={diaryEntries}
-        vaccineRecords={vaccineRecords}
-        medicalVisits={medicalVisits}
-        stickyNotes={stickyNotes}
-        familyCode={familyCode}
-        onImportData={handleImportData}
+        babyProfile={appData.babyProfile}
+        onSave={handleSaveProfile}
       />
 
     </div>
   );
 }
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <ToastProvider>
-        <BabyAppContent />
-      </ToastProvider>
-    </ErrorBoundary>
-  );
-}
-

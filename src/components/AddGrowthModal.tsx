@@ -1,201 +1,250 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { X, TrendingUp, Scale, Ruler, Brain, Calendar } from 'lucide-react';
-import type { GrowthRecord, BabyProfile } from '../types';
-import { calculateAge } from '../utils/dateUtils';
+import { Weight, Ruler, Brain, Calendar, User, FileText, CheckCircle2 } from 'lucide-react';
+import { BabyProfile, GrowthRecord } from '../types';
+import { calculatePercentile, getPercentileInterpretation } from '../data/whoGrowthData';
 
 interface AddGrowthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  baby: BabyProfile;
-  onSave: (record: Partial<GrowthRecord>) => void;
-  editingRecord?: GrowthRecord | null;
+  babyProfile: BabyProfile;
+  onSave: (record: GrowthRecord) => void;
 }
 
 export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
   isOpen,
   onClose,
-  baby,
+  babyProfile,
   onSave,
-  editingRecord,
 }) => {
-  const [date, setDate] = useState(editingRecord ? editingRecord.date : new Date().toISOString().split('T')[0]);
-  const [weight, setWeight] = useState<number | ''>(editingRecord ? editingRecord.weight : 4.5);
-  const [length, setLength] = useState<number | ''>(editingRecord ? editingRecord.length : 55.0);
-  const [headCirc, setHeadCirc] = useState<number | ''>(editingRecord ? editingRecord.headCirc : 37.0);
-  const [doctorNote, setDoctorNote] = useState(editingRecord?.doctorNote || '');
-  const [measuredBy, setMeasuredBy] = useState(editingRecord?.measuredBy || '小兒科門診 / 家中');
+  const todayStr = new Date().toISOString().split('T')[0];
 
-  React.useEffect(() => {
-    if (isOpen) {
-      setDate(editingRecord ? editingRecord.date : new Date().toISOString().split('T')[0]);
-      setWeight(editingRecord ? editingRecord.weight : 4.5);
-      setLength(editingRecord ? editingRecord.length : 55.0);
-      setHeadCirc(editingRecord ? editingRecord.headCirc : 37.0);
-      setDoctorNote(editingRecord?.doctorNote || '');
-      setMeasuredBy(editingRecord?.measuredBy || '小兒科門診 / 家中');
-    }
-  }, [isOpen, editingRecord]);
+  const [date, setDate] = useState(todayStr);
+  const [weight, setWeight] = useState<string>('6.5');
+  const [length, setLength] = useState<string>('63.0');
+  const [headCirc, setHeadCirc] = useState<string>('41.5');
+  const [doctorNote, setDoctorNote] = useState('');
+  const [measuredBy, setMeasuredBy] = useState('媽媽');
 
   if (!isOpen) return null;
 
+  // Calculate age at measurement date
+  const birthTime = new Date(babyProfile.birthday).getTime();
+  const measureTime = new Date(date).getTime();
+  const diffDays = Math.max(0, Math.floor((measureTime - birthTime) / (1000 * 60 * 60 * 24)));
+  const ageMonths = parseFloat((diffDays / 30.4375).toFixed(1));
+
+  const numWeight = parseFloat(weight) || 0;
+  const numLength = parseFloat(length) || 0;
+  const numHead = parseFloat(headCirc) || 0;
+
+  // Live Percentiles
+  const pWeight = numWeight > 0 ? calculatePercentile(numWeight, ageMonths, 'weight', babyProfile.gender) : 50;
+  const pLength = numLength > 0 ? calculatePercentile(numLength, ageMonths, 'length', babyProfile.gender) : 50;
+  const pHead = numHead > 0 ? calculatePercentile(numHead, ageMonths, 'headCirc', babyProfile.gender) : 50;
+
+  // BMI
+  const lengthM = numLength / 100;
+  const bmi = lengthM > 0 ? parseFloat((numWeight / (lengthM * lengthM)).toFixed(1)) : undefined;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const ageInfo = calculateAge(baby.birthDate, date);
+    if (!numWeight || !numLength || !numHead) return;
 
-    onSave({
+    const newRecord: GrowthRecord = {
+      id: `growth_${Date.now()}`,
       date,
-      ageMonths: ageInfo.months,
-      ageDays: ageInfo.totalDays,
-      weight: Number(weight) || 0,
-      length: Number(length) || 0,
-      headCirc: Number(headCirc) || 0,
-      doctorNote: doctorNote.trim(),
-      measuredBy: measuredBy.trim(),
-    });
+      ageMonths,
+      ageDays: diffDays,
+      weight: numWeight,
+      length: numLength,
+      headCirc: numHead,
+      percentileWeight: pWeight,
+      percentileLength: pLength,
+      percentileHeadCirc: pHead,
+      bmi,
+      doctorNote: doctorNote.trim() || undefined,
+      measuredBy: measuredBy.trim() || undefined,
+    };
+
+    onSave(newRecord);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 20 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-        className="bg-[#F9F6F0] w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#D9D1C2] shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto"
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2A2723]/60 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-[#F9F6F0] rounded-[36px] p-7 sm:p-9 max-w-lg w-full border border-[#D9D1C2] shadow-2xl space-y-6">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-[#EBE7DF]">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-11 h-11 rounded-full bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
+              <Weight className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
-              <h3 className="font-serif font-bold text-lg text-[#2A2723]">
-                {editingRecord ? '編輯生長發育測量紀錄' : '記錄寶寶最新生長數值'}
+              <h3 className="text-xl sm:text-2xl font-serif italic text-[#2A2723]">
+                記錄最新生長發育數據
               </h3>
               <p className="text-xs text-[#8C8475] font-sans">
-                體重、身長、頭圍實時對照 WHO 百分位標準
+                測量日期將自動計算對應月齡與 WHO 百分位
               </p>
             </div>
           </div>
-
           <button
             onClick={onClose}
-            className="p-2 text-[#8C8475] hover:text-[#2A2723] rounded-xl hover:bg-[#EBE7DF] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#F2EDE4] text-[#4A453E] hover:bg-[#E6DFD1] flex items-center justify-center font-bold"
           >
-            <X className="w-5 h-5" />
+            ✕
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 font-sans text-xs">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm font-sans">
           
-          <div className="grid grid-cols-2 gap-3">
+          {/* Date & Age Calculation Row */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[#6B6457] font-medium mb-1">測量日期</label>
+              <label className="block text-xs font-sans uppercase tracking-wider text-[#6B6457] mb-1.5">
+                測量日期
+              </label>
               <input
                 type="date"
+                required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                required
-                className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs font-mono text-[#2A2723] focus:outline-none"
+                className="w-full px-4 py-2.5 rounded-full border border-[#D1CEC4] bg-white text-[#2A2723] focus:outline-hidden focus:border-[#2A2723]"
               />
             </div>
 
             <div>
-              <label className="block text-[#6B6457] font-medium mb-1">測量單位 / 地點</label>
-              <input
-                type="text"
-                value={measuredBy}
-                onChange={(e) => setMeasuredBy(e.target.value)}
-                placeholder="例如: 台大小兒科 / 家用嬰兒秤"
-                className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2A2723] focus:outline-none"
-              />
+              <label className="block text-xs font-sans uppercase tracking-wider text-[#6B6457] mb-1.5">
+                推算月齡 / 天數
+              </label>
+              <div className="px-4 py-2.5 rounded-full bg-[#F2EDE4] border border-[#D9D1C2] text-[#2A2723] font-serif italic text-sm">
+                滿 {ageMonths} 個月 ({diffDays} 天)
+              </div>
             </div>
           </div>
 
-          {/* Three measurement numbers */}
-          <div className="p-4 bg-white rounded-2xl border border-[#EBE7DF] space-y-3">
-            <span className="font-serif font-bold text-xs text-[#2A2723] block">
-              輸入三大生理發育指標
-            </span>
-            <div className="grid grid-cols-3 gap-2.5">
-              <div>
-                <label className="text-[11px] text-amber-900 font-bold block mb-1">
-                  體重 (kg)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={weight}
-                  onChange={(e) => setWeight(parseFloat(e.target.value) || '')}
-                  className="w-full bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723]"
-                />
+          {/* Measurements Fields Grid with Live Percentile Preview */}
+          <div className="grid grid-cols-3 gap-3">
+            
+            {/* Weight */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-sans uppercase tracking-wider text-[#6B6457] text-center">
+                體重 (kg)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="1"
+                max="25"
+                required
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-2xl border border-[#D1CEC4] bg-white font-mono font-bold text-[#2A2723] text-center focus:border-[#2A2723]"
+              />
+              <div className="text-[10px] text-center font-mono font-bold text-[#2A2723] bg-[#F2EDE4] rounded-full py-0.5 border border-[#D9D1C2]">
+                P{pWeight}
               </div>
+            </div>
 
-              <div>
-                <label className="text-[11px] text-teal-900 font-bold block mb-1">
-                  身長 (cm)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  required
-                  value={length}
-                  onChange={(e) => setLength(parseFloat(e.target.value) || '')}
-                  className="w-full bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723]"
-                />
+            {/* Length */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-sans uppercase tracking-wider text-[#6B6457] text-center">
+                身長 (cm)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="35"
+                max="120"
+                required
+                value={length}
+                onChange={(e) => setLength(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-2xl border border-[#D1CEC4] bg-white font-mono font-bold text-[#2A2723] text-center focus:border-[#2A2723]"
+              />
+              <div className="text-[10px] text-center font-mono font-bold text-[#3E4A3E] bg-[#E6EBE6] rounded-full py-0.5 border border-[#D5DDD5]">
+                P{pLength}
               </div>
+            </div>
 
-              <div>
-                <label className="text-[11px] text-indigo-900 font-bold block mb-1">
-                  頭圍 (cm)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  required
-                  value={headCirc}
-                  onChange={(e) => setHeadCirc(parseFloat(e.target.value) || '')}
-                  className="w-full bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723]"
-                />
+            {/* Head */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-sans uppercase tracking-wider text-[#6B6457] text-center">
+                頭圍 (cm)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="25"
+                max="60"
+                required
+                value={headCirc}
+                onChange={(e) => setHeadCirc(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-2xl border border-[#D1CEC4] bg-white font-mono font-bold text-[#2A2723] text-center focus:border-[#2A2723]"
+              />
+              <div className="text-[10px] text-center font-mono font-bold text-[#3A4050] bg-[#E6E9F2] rounded-full py-0.5 border border-[#D5D9E6]">
+                P{pHead}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Measured By & Doctor Notes */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-sans uppercase tracking-wider text-[#6B6457] mb-1.5">
+                記錄者 / 測量人
+              </label>
+              <input
+                type="text"
+                placeholder="媽媽 / 爸爸 / 兒科診所"
+                value={measuredBy}
+                onChange={(e) => setMeasuredBy(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-full border border-[#D1CEC4] bg-white text-[#2A2723] focus:border-[#2A2723]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-sans uppercase tracking-wider text-[#6B6457] mb-1.5">
+                BMI 指數
+              </label>
+              <div className="px-4 py-2.5 rounded-full bg-[#F2EDE4] text-[#2A2723] font-mono">
+                {bmi ? `${bmi} kg/m²` : '--'}
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-[#6B6457] font-medium mb-1">兒科醫師評語 / 發育觀察 (選填)</label>
+            <label className="block text-xs font-sans uppercase tracking-wider text-[#6B6457] mb-1.5">
+              醫師評註或生長觀察心得 (選填)
+            </label>
             <textarea
               rows={2}
+              placeholder="例：健檢醫師表示生長曲線十分漂亮，活動力與眼神追視發展良好..."
               value={doctorNote}
               onChange={(e) => setDoctorNote(e.target.value)}
-              placeholder="例如: 醫師表示生長曲線維持在50百分位，活動力佳..."
-              className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2A2723] focus:outline-none"
+              className="w-full px-4 py-3 rounded-[20px] border border-[#D1CEC4] bg-white text-[#2A2723] focus:border-[#2A2723]"
             />
           </div>
 
-          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#EBE7DF]">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#EBE7DF]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-full border border-[#D9D1C2] text-xs text-[#6B6457] hover:bg-[#EBE7DF] cursor-pointer"
+              className="px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider text-[#6B6457] hover:bg-[#F2EDE4]"
             >
               取消
             </button>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+            <button
               type="submit"
-              className="px-6 py-2 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-semibold hover:bg-[#4A453E] shadow-xs cursor-pointer"
+              className="px-6 py-2.5 rounded-full bg-[#2A2723] hover:bg-[#3D3833] text-[#F9F6F0] text-xs font-sans uppercase tracking-wider shadow-sm transition-all"
             >
-              {editingRecord ? '儲存變更' : '新增生長紀錄'}
-            </motion.button>
+              儲存生長數據
+            </button>
           </div>
 
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 };

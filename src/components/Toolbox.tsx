@@ -1,730 +1,1322 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Utensils,
-  Calculator,
-  Volume2,
-  VolumeX,
-  ShieldAlert,
-  CheckCircle2,
-  Sparkles,
-  Thermometer,
-  Moon,
-  Clock,
-  HelpCircle,
-  Milk,
-  Luggage,
-  AlertTriangle,
-  RotateCcw,
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  BabyProfile, 
+  GrowthRecord, 
+  VaccineRecord, 
+  MedicalVisit, 
+  DiaryEntry,
+  CloudSyncInfo 
+} from '../types';
+import { 
+  FileText, 
+  Cloud, 
+  Milk, 
+  Thermometer, 
+  Volume2, 
+  VolumeX, 
+  Clock, 
+  Utensils, 
+  Play, 
+  Pause, 
+  AlertCircle, 
+  CheckCircle2, 
+  ChevronRight, 
+  Sparkles, 
+  Heart, 
+  Activity, 
   Info,
-  ChevronDown,
-  ChevronUp,
+  RotateCcw,
+  Sliders,
+  BellRing,
+  Droplets
 } from 'lucide-react';
-import { initialFoodAllergenList, type FoodAllergenItem } from '../data/foodAllergenData';
-import { audioSynthesizer } from '../utils/audioSynthesizer';
-import type { BabyProfile } from '../types';
-import { calculateAge } from '../utils/dateUtils';
+import { audioSynthesizer, SoundType } from '../utils/audioSynthesizer';
+import { FOOD_DATABASE, FoodCategory, FoodTrialStatus, FoodItem } from '../data/foodAllergenData';
+import { TotalIOTracker } from './TotalIOTracker';
 
 interface ToolboxProps {
-  baby: BabyProfile;
+  babyProfile: BabyProfile;
+  growthRecords: GrowthRecord[];
+  vaccineRecords: VaccineRecord[];
+  medicalVisits: MedicalVisit[];
+  diaryEntries: DiaryEntry[];
+  syncInfo: CloudSyncInfo;
+  onOpenPediatricReport: () => void;
+  onOpenCloudSync: () => void;
+  onAddDiaryEntry?: (entry: DiaryEntry) => void;
 }
 
-type ToolTab = 'all' | 'feed' | 'sleep' | 'health' | 'stool' | 'allergen' | 'outing';
+type ActiveToolTab = 'totalio' | 'milk' | 'fever' | 'whitenoise' | 'wakewindow' | 'foodtracker';
 
-interface OutingItem {
-  id: string;
-  category: string;
-  name: string;
-  description: string;
-  checked: boolean;
-}
+const FOOD_STORAGE_KEY = 'BABY_FOOD_TRIALS_STATE_V1';
 
-const defaultOutingItems: OutingItem[] = [
-  { id: 'o-1', category: '衛生清潔', name: '尿布 4-5 片', description: '依外出時長每 2-3 小時更換 1 片預備', checked: true },
-  { id: 'o-2', category: '衛生清潔', name: '純水濕紙巾 (外出隨身包)', description: '溫和無酒精成分，擦拭手口屁屁', checked: true },
-  { id: 'o-3', category: '衛生清潔', name: '拋棄式換尿布墊 / 防水墊', description: '公用哺乳室隔絕接觸衛生防護', checked: false },
-  { id: 'o-4', category: '衛生清潔', name: '小塑膠袋 / 尿布除臭袋', description: '包裹髒尿布與換洗衣物', checked: false },
-  { id: 'o-5', category: '哺育飲食', name: '保溫瓶 (70°C 熱水)', description: 'WHO 標準沖泡配方奶殺菌水溫', checked: true },
-  { id: 'o-6', category: '哺育飲食', name: '冷開水隨身瓶', description: '隔水降溫或適度降溫使用', checked: false },
-  { id: 'o-7', category: '哺育飲食', name: '奶粉分裝盒 / 拋棄式奶粉袋', description: '按餐數預先定量分裝', checked: true },
-  { id: 'o-8', category: '哺育飲食', name: '已消毒奶瓶 (2 支)', description: '附密封瓶蓋與矽膠奶嘴', checked: true },
-  { id: 'o-9', category: '哺育飲食', name: '拋棄式圍兜 / 紗布巾 3 條', description: '拍嗝溢奶與擦口水必備', checked: true },
-  { id: 'o-10', category: '更換衣物', name: '換洗衣物 1-2 套 (包屁衣+褲子)', description: '預防炸屎或嚴重溢奶髒污', checked: true },
-  { id: 'o-11', category: '更換衣物', name: '薄包巾 / 小薄毯', description: '冷氣房防風保暖或遮光使用', checked: false },
-  { id: 'o-12', category: '重要證件與安撫', name: '兒童健康手冊 + 健保卡', description: '臨時就診或疫苗接種必備', checked: true },
-  { id: 'o-13', category: '重要證件與安撫', name: '安撫奶嘴 (附防掉鍊與收納盒)', description: '哭鬧安撫或入睡神器', checked: true },
-];
+export const Toolbox: React.FC<ToolboxProps> = ({
+  babyProfile,
+  growthRecords,
+  vaccineRecords,
+  medicalVisits,
+  diaryEntries,
+  syncInfo,
+  onOpenPediatricReport,
+  onOpenCloudSync,
+  onAddDiaryEntry,
+}) => {
+  const [activeTool, setActiveTool] = useState<ActiveToolTab>('totalio');
 
-export const Toolbox: React.FC<ToolboxProps> = ({ baby }) => {
-  const [activeTab, setActiveTab] = useState<ToolTab>('all');
-  const [allergens, setAllergens] = useState<FoodAllergenItem[]>(initialFoodAllergenList);
-  const [isWhiteNoisePlaying, setIsWhiteNoisePlaying] = useState(false);
-
-  // Milk volume calculator states
-  const [babyWeightInput, setBabyWeightInput] = useState<number>(baby.birthWeight || 4.5);
-  const [dailyFeedsInput, setDailyFeedsInput] = useState<number>(6);
-
-  // Fever assessment states
-  const [feverTempInput, setFeverTempInput] = useState<number>(37.8);
-  const [feverAgeMonths, setFeverAgeMonths] = useState<number>(() => {
-    const age = calculateAge(baby.birthDate);
-    return age.months;
-  });
-
-  // Wake window age selector
-  const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('0-2M');
-
-  // Stool color guide state
-  const [selectedStoolNumber, setSelectedStoolNumber] = useState<number | null>(7);
-
-  // Diaper bag checklist
-  const [outingChecklist, setOutingChecklist] = useState<OutingItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('baby_outing_checklist');
-      return saved ? JSON.parse(saved) : defaultOutingItems;
-    } catch {
-      return defaultOutingItems;
-    }
-  });
-
-  // Save outing checklist to local storage
-  useEffect(() => {
-    localStorage.setItem('baby_outing_checklist', JSON.stringify(outingChecklist));
-  }, [outingChecklist]);
-
-  const totalDailyMilk = Math.round(babyWeightInput * 150); // 150ml per kg
-  const perFeedMilk = Math.round(totalDailyMilk / (dailyFeedsInput || 1));
-
-  const toggleNoise = () => {
-    const nextState = !isWhiteNoisePlaying;
-    audioSynthesizer.toggleWhiteNoise(nextState);
-    setIsWhiteNoisePlaying(nextState);
-  };
-
-  const toggleAllergenTested = (index: number) => {
-    setAllergens((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, tested: !item.tested } : item))
-    );
-  };
-
-  const toggleOutingItem = (id: string) => {
-    setOutingChecklist((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item))
-    );
-  };
-
-  const resetOutingChecklist = () => {
-    setOutingChecklist(defaultOutingItems.map((i) => ({ ...i, checked: false })));
-  };
-
-  // Fever diagnosis evaluation
-  const getFeverEvaluation = () => {
-    const isUnder3Months = feverAgeMonths < 3;
-    const isFever = feverTempInput >= 38.0;
-    const isHighFever = feverTempInput >= 39.0;
-    const isMildWarm = feverTempInput >= 37.5 && feverTempInput < 38.0;
-
-    if (isUnder3Months && feverTempInput >= 38.0) {
-      return {
-        level: 'emergency',
-        badge: '🚨 未滿 3 個月急症發燒',
-        color: 'bg-rose-50 border-rose-400 text-rose-950',
-        message: '未滿 3 個月新生兒發燒 ≥ 38.0°C 屬於兒科急症！新生兒免疫系統尚未健全，需立即前往大醫院急診或小兒科進行抽血、驗尿或血液檢查，請勿自行服用成藥退燒。',
-      };
-    }
-    if (isHighFever) {
-      return {
-        level: 'high',
-        badge: '⚠️ 高燒注意 (≥ 39.0°C)',
-        color: 'bg-rose-50 border-rose-300 text-rose-900',
-        message: '體溫偏高，請密切觀察寶寶的精神活動力與呼吸狀況。可依醫師醫囑給予退燒藥物，補充足夠水分或電解質水，若伴隨呼吸急促、抽搐或活動力低下請立即送醫。',
-      };
-    }
-    if (isFever) {
-      return {
-        level: 'fever',
-        badge: '🌡️ 發燒 (38.0°C - 38.9°C)',
-        color: 'bg-amber-50 border-amber-300 text-amber-950',
-        message: '發燒是免疫系統對抗病原的正常生理防禦反應。重點在於觀察精神、食慾與大小便。發抖或手腳冰冷時注意保暖；體溫升高發熱冒汗時則應適度減少衣物並保持空氣流通。',
-      };
-    }
-    if (isMildWarm) {
-      return {
-        level: 'mild',
-        badge: '☀️ 微熱 (37.5°C - 37.9°C)',
-        color: 'bg-amber-50/60 border-amber-200 text-amber-900',
-        message: '體溫略高，可能由於衣物包覆過厚、剛喝完熱奶、大哭用力或室內溫度偏高。可先解開一件外衣，休息 20-30 分鐘後再次測量耳溫或肛溫。',
-      };
-    }
+  // Calculate current baby age in months and days
+  const babyAge = useMemo(() => {
+    if (!babyProfile.birthday) return { months: 0, days: 0, text: '初生' };
+    const bDate = new Date(babyProfile.birthday);
+    const now = new Date();
+    const diffMs = now.getTime() - bDate.getTime();
+    const days = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    const months = parseFloat((days / 30.4375).toFixed(1));
     return {
-      level: 'normal',
-      badge: '✅ 體溫正常 (36.5°C - 37.4°C)',
-      color: 'bg-emerald-50 border-emerald-300 text-emerald-950',
-      message: '體溫處於嬰幼兒正常生理範圍，活力與食慾良好時持續維持規律作息即可。',
+      months,
+      days,
+      text: months < 1 ? `初生 ${days} 天` : `${months} 個月 (${days} 天)`,
     };
+  }, [babyProfile.birthday]);
+
+  // Latest weight from growth records or baby profile
+  const defaultWeight = useMemo(() => {
+    if (growthRecords.length > 0) {
+      const sorted = [...growthRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return sorted[0].weight;
+    }
+    return babyProfile.birthWeight > 0 ? babyProfile.birthWeight : 4.5;
+  }, [growthRecords, babyProfile.birthWeight]);
+
+  // ----------------------------------------------------
+  // TOOL 1: MILK & FORMULA CALCULATOR STATE
+  // ----------------------------------------------------
+  const [calcWeight, setCalcWeight] = useState<number>(defaultWeight);
+  const [mealsPerDay, setMealsPerDay] = useState<number>(6);
+  const [feedingStandard, setFeedingStandard] = useState<'standard' | 'high' | 'early'>('standard');
+
+  useEffect(() => {
+    if (defaultWeight > 0) {
+      setCalcWeight(defaultWeight);
+    }
+  }, [defaultWeight]);
+
+  const milkResults = useMemo(() => {
+    const w = Math.max(1.5, Math.min(20, calcWeight || 4.5));
+    // ml per kg per day
+    let multiplierMin = 120;
+    let multiplierMax = 150;
+
+    if (feedingStandard === 'early') {
+      multiplierMin = 100;
+      multiplierMax = 120;
+    } else if (feedingStandard === 'high') {
+      multiplierMin = 140;
+      multiplierMax = 160;
+    }
+
+    const totalMin = Math.round(w * multiplierMin);
+    const totalMax = Math.round(w * multiplierMax);
+    const perMealMin = Math.round(totalMin / mealsPerDay);
+    const perMealMax = Math.round(totalMax / mealsPerDay);
+
+    return {
+      weight: w,
+      totalMin,
+      totalMax,
+      perMealMin,
+      perMealMax,
+      mealsPerDay,
+    };
+  }, [calcWeight, mealsPerDay, feedingStandard]);
+
+  // ----------------------------------------------------
+  // TOOL 2: FEVER & ANTIPYRETIC CALCULATOR STATE
+  // ----------------------------------------------------
+  const [feverWeight, setFeverWeight] = useState<number>(defaultWeight);
+  const [feverTemp, setFeverTemp] = useState<number>(38.2);
+  const [tempRoute, setTempRoute] = useState<'ear' | 'rectal' | 'axillary' | 'forehead'>('ear');
+
+  const feverAssessment = useMemo(() => {
+    const t = feverTemp;
+    const isUnder3Months = babyAge.months < 3;
+    let level: 'normal' | 'mild' | 'moderate' | 'high' = 'normal';
+    let label = '正常體溫';
+    let colorClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+
+    if (t >= 39.0) {
+      level = 'high';
+      label = '高燒 (≥ 39.0°C)';
+      colorClass = 'text-red-700 bg-red-50 border-red-200';
+    } else if (t >= 38.5) {
+      level = 'moderate';
+      label = '中度發燒 (38.5 ~ 38.9°C)';
+      colorClass = 'text-amber-800 bg-amber-50 border-amber-200';
+    } else if (t >= 38.0) {
+      level = 'mild';
+      label = '輕微發燒 (38.0 ~ 38.4°C)';
+      colorClass = 'text-amber-700 bg-amber-50 border-amber-200';
+    } else if (t >= 37.5) {
+      level = 'mild';
+      label = '微溫 / 發熱中 (37.5 ~ 37.9°C)';
+      colorClass = 'text-blue-700 bg-blue-50 border-blue-200';
+    }
+
+    // Dosage calculations based on Taiwanese standard pediatric liquid suspensions
+    const w = Math.max(2, feverWeight || 5);
+    
+    // 1. Acetaminophen syrup (24mg/ml, e.g. 安佳適 / 普拿疼口服液)
+    // 10 ~ 15 mg/kg => (w * 10 / 24) to (w * 15 / 24) => w * 0.42 to w * 0.62 ml
+    const acetMinMl = (w * 0.42).toFixed(1);
+    const acetMaxMl = (w * 0.62).toFixed(1);
+    const acetRecMl = (w * 0.5).toFixed(1); // Standard ~ weight / 2
+
+    // 2. Ibuprofen suspension (20mg/ml, e.g. 依普芬 / 馬蓋先, 僅限滿6個月以上)
+    // 5 ~ 10 mg/kg => (w * 5 / 20) to (w * 10 / 20) => w * 0.25 to w * 0.5 ml
+    const isIbuprofenAllowed = babyAge.months >= 6;
+    const ibuMinMl = (w * 0.25).toFixed(1);
+    const ibuMaxMl = (w * 0.5).toFixed(1);
+    const ibuRecMl = (w * 0.35).toFixed(1);
+
+    return {
+      t,
+      level,
+      label,
+      colorClass,
+      isUnder3Months,
+      isIbuprofenAllowed,
+      weight: w,
+      acetMinMl,
+      acetMaxMl,
+      acetRecMl,
+      ibuMinMl,
+      ibuMaxMl,
+      ibuRecMl,
+    };
+  }, [feverTemp, feverWeight, babyAge.months]);
+
+  // ----------------------------------------------------
+  // TOOL 3: WHITE NOISE & SOUND SYNTHESIZER STATE
+  // ----------------------------------------------------
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [activeSound, setActiveSound] = useState<SoundType>('heartbeat');
+  const [volume, setVolume] = useState<number>(0.5);
+  const [timerMinutes, setTimerMinutes] = useState<number>(30);
+  const [remainingSecs, setRemainingSecs] = useState<number | null>(null);
+
+  // Audio timer loop
+  useEffect(() => {
+    let interval: any = null;
+    if (isPlayingAudio && remainingSecs !== null && remainingSecs > 0) {
+      interval = setInterval(() => {
+        setRemainingSecs((prev) => {
+          if (prev === null || prev <= 1) {
+            audioSynthesizer.stop();
+            setIsPlayingAudio(false);
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlayingAudio, remainingSecs]);
+
+  const handleToggleSound = (type: SoundType) => {
+    if (isPlayingAudio && activeSound === type) {
+      audioSynthesizer.stop();
+      setIsPlayingAudio(false);
+      setRemainingSecs(null);
+    } else {
+      audioSynthesizer.setVolume(volume);
+      audioSynthesizer.play(type);
+      setActiveSound(type);
+      setIsPlayingAudio(true);
+      if (timerMinutes > 0) {
+        setRemainingSecs(timerMinutes * 60);
+      } else {
+        setRemainingSecs(null);
+      }
+    }
   };
 
-  const feverEval = getFeverEvaluation();
-
-  // Wake windows data
-  const wakeWindowData: Record<
-    string,
-    { title: string; window: string; naps: string; totalSleep: string; tips: string }
-  > = {
-    '0-2M': {
-      title: '0 - 2 個月 (新生兒期)',
-      window: '45 - 60 分鐘',
-      naps: '4 - 5 次小睡',
-      totalSleep: '16 - 18 小時',
-      tips: '新生兒耐受清醒時間極短，喝完奶、換尿布後約 1 小時就需準備安撫入睡，過度疲勞易造成傍晚哭鬧不休 (黃昏哭/腸絞痛)。',
-    },
-    '3-4M': {
-      title: '3 - 4 個月 (睡眠退化期)',
-      window: '75 - 90 分鐘 (約 1.5 小時)',
-      naps: '3 - 4 次小睡',
-      totalSleep: '14 - 16 小時',
-      tips: '嬰兒開始建立晝夜生理節律，白天小睡約 3-4 次，可開始建立固定的就寢儀式（洗澡-按摩-暗燈-白噪音）。',
-    },
-    '5-6M': {
-      title: '5 - 6 個月 (副食品初探期)',
-      window: '2 - 2.5 小時',
-      naps: '3 次小睡',
-      totalSleep: '13 - 15 小時',
-      tips: '白天小睡逐漸規律化為早、中、傍晚小睡，傍晚小睡不宜超過下午 5:00 以免影響夜間長睡眠入睡。',
-    },
-    '7-9M': {
-      title: '7 - 9 個月 (兩次小睡轉換期)',
-      window: '2.5 - 3.5 小時',
-      naps: '2 次小睡 (上午 + 下午)',
-      totalSleep: '12 - 14 小時',
-      tips: '大動作發育期（翻身、爬行、坐立），夜醒可能增多。維持一致的睡前儀式並給予充足的白天趴玩放電。',
-    },
-    '10-12M': {
-      title: '10 - 12 個月 (滿週歲前夕)',
-      window: '3 - 4 小時',
-      naps: '2 次小睡 (上午 1-1.5h, 下午 1-1.5h)',
-      totalSleep: '12 - 14 小時',
-      tips: '清醒時間拉長，夜間可維持 10-11 小時長睡眠，白天副食品熱量增加有助於穩定夜間不再討奶。',
-    },
-    '1-2Y': {
-      title: '1 - 2 歲 (幼兒階段)',
-      window: '4 - 5.5 小時',
-      naps: '1 次小睡 (通常在午餐後)',
-      totalSleep: '11 - 13 小時',
-      tips: '大多數幼兒在 15-18 個月時會自然過渡為每天只需 1 次午間小睡 (約 1.5-2.5 小時)。',
-    },
+  const handleStopAudio = () => {
+    audioSynthesizer.stop();
+    setIsPlayingAudio(false);
+    setRemainingSecs(null);
   };
 
-  // Stool 9-color card details
-  const stoolColorGuide: Record<
-    number,
-    { name: string; hex: string; isNormal: boolean; description: string }
-  > = {
-    1: { name: '1號 灰白色', hex: '#E2E2DF', isNormal: false, description: '⚠️ 不正常！膽道閉鎖警訊色。膽汁完全未排入腸道，需立即帶大便檢體就診小兒腸胃專科！' },
-    2: { name: '2號 灰白色', hex: '#DCD4C6', isNormal: false, description: '⚠️ 不正常！膽汁滯留或膽道閉鎖可能，新生兒黃金篩檢期為出生 60 天內需及早葛西手術。' },
-    3: { name: '3號 淡黃白色', hex: '#EAE1BC', isNormal: false, description: '⚠️ 不正常！嚴重肝膽疾病徵兆，請立即拍照留存並攜帶尿布至小兒科門診。' },
-    4: { name: '4號 陶土色', hex: '#D1BEA8', isNormal: false, description: '⚠️ 不正常！陶土色便代表膽紅素代謝排泄異常，不可延誤！' },
-    5: { name: '5號 淡黃色', hex: '#ECD78A', isNormal: false, description: '⚠️ 不正常！顏色過淡，與正常金黃色有明顯落差，建議尋求兒科醫師專業評估。' },
-    6: { name: '6號 淡黃褐色', hex: '#D4B876', isNormal: false, description: '⚠️ 不正常！偏淡之黃褐色，若持續出現需高度警覺。' },
-    7: { name: '7號 金黃色', hex: '#E9AF27', isNormal: true, description: '✅ 正常健康色！純母乳寶寶典型的金黃色軟糊狀大便，帶有淡淡酸奶味與顆粒。' },
-    8: { name: '8號 黃綠色', hex: '#B89F2A', isNormal: true, description: '✅ 正常健康色！配方奶或混哺寶寶常見顏色，膽汁經腸道氧化後呈現黃綠色。' },
-    9: { name: '9號 墨綠/深綠色', hex: '#5A6335', isNormal: true, description: '✅ 正常健康色！配方奶中含豐富鐵質，未被腸道完全吸收之鐵質與空氣氧化呈現深綠色，無須擔憂。' },
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    audioSynthesizer.setVolume(newVol);
   };
+
+  const handleTimerChange = (mins: number) => {
+    setTimerMinutes(mins);
+    if (isPlayingAudio) {
+      if (mins > 0) {
+        setRemainingSecs(mins * 60);
+      } else {
+        setRemainingSecs(null);
+      }
+    }
+  };
+
+  // ----------------------------------------------------
+  // TOOL 4: WAKE WINDOW & SLEEP ROUTINE STATE
+  // ----------------------------------------------------
+  const [lastWakeTime, setLastWakeTime] = useState<string>(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  });
+
+  const wakeWindowData = useMemo(() => {
+    const m = babyAge.months;
+    let windowMinMins = 60;
+    let windowMaxMins = 90;
+    let napsPerDay = '3 ~ 4 次';
+    let totalSleep = '14 ~ 16 小時';
+    let stageLabel = '2~3 個月（作息初探期）';
+
+    if (m < 1) {
+      windowMinMins = 45;
+      windowMaxMins = 60;
+      napsPerDay = '4 ~ 5 次';
+      totalSleep = '16 ~ 18 小時';
+      stageLabel = '初生新生兒（0~1 個月）';
+    } else if (m < 4) {
+      windowMinMins = 60;
+      windowMaxMins = 90;
+      napsPerDay = '3 ~ 4 次';
+      totalSleep = '14 ~ 16 小時';
+      stageLabel = '2~3 個月（作息初探期）';
+    } else if (m < 7) {
+      windowMinMins = 90;
+      windowMaxMins = 150;
+      napsPerDay = '3 次';
+      totalSleep = '13 ~ 15 小時';
+      stageLabel = '4~6 個月（作息建立期）';
+    } else if (m < 10) {
+      windowMinMins = 150;
+      windowMaxMins = 210;
+      napsPerDay = '2 次';
+      totalSleep = '12 ~ 14 小時';
+      stageLabel = '7~9 個月（穩定兩次小睡）';
+    } else if (m < 13) {
+      windowMinMins = 180;
+      windowMaxMins = 240;
+      napsPerDay = '2 次';
+      totalSleep = '12 ~ 14 小時';
+      stageLabel = '10~12 個月（預備一歲轉換）';
+    } else {
+      windowMinMins = 240;
+      windowMaxMins = 330;
+      napsPerDay = '1 ~ 2 次';
+      totalSleep = '11 ~ 13 小時';
+      stageLabel = '1歲以上幼兒期';
+    }
+
+    // Calculate next nap time from lastWakeTime
+    const [hStr, mStr] = (lastWakeTime || '08:00').split(':');
+    const wakeDate = new Date();
+    wakeDate.setHours(parseInt(hStr, 10) || 0, parseInt(mStr, 10) || 0, 0, 0);
+
+    const nextNapMinDate = new Date(wakeDate.getTime() + windowMinMins * 60 * 1000);
+    const nextNapMaxDate = new Date(wakeDate.getTime() + windowMaxMins * 60 * 1000);
+
+    const formatTime = (d: Date) => {
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
+    };
+
+    return {
+      stageLabel,
+      windowMinMins,
+      windowMaxMins,
+      napsPerDay,
+      totalSleep,
+      nextNapMinTime: formatTime(nextNapMinDate),
+      nextNapMaxTime: formatTime(nextNapMaxDate),
+    };
+  }, [babyAge.months, lastWakeTime]);
+
+  // ----------------------------------------------------
+  // TOOL 5: SOLID FOOD & ALLERGEN TRACKER STATE
+  // ----------------------------------------------------
+  const [foodCategoryFilter, setFoodCategoryFilter] = useState<FoodCategory | 'all'>('all');
+  const [foodTrialStatuses, setFoodTrialStatuses] = useState<Record<string, FoodTrialStatus>>(() => {
+    try {
+      const saved = localStorage.getItem(FOOD_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      // ignore
+    }
+    return {};
+  });
+
+  const handleUpdateFoodStatus = (foodId: string, status: FoodTrialStatus) => {
+    const updated = {
+      ...foodTrialStatuses,
+      [foodId]: status,
+    };
+    setFoodTrialStatuses(updated);
+    try {
+      localStorage.setItem(FOOD_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const filteredFoods = useMemo(() => {
+    if (foodCategoryFilter === 'all') return FOOD_DATABASE;
+    return FOOD_DATABASE.filter((f) => f.category === foodCategoryFilter);
+  }, [foodCategoryFilter]);
+
+  const foodStats = useMemo(() => {
+    const total = FOOD_DATABASE.length;
+    let passedCount = 0;
+    let tryingCount = 0;
+    let allergicCount = 0;
+
+    FOOD_DATABASE.forEach((f) => {
+      const st = foodTrialStatuses[f.id] || 'untried';
+      if (st === 'passed') passedCount++;
+      else if (st === 'trying') tryingCount++;
+      else if (st === 'allergic') allergicCount++;
+    });
+
+    return {
+      total,
+      passedCount,
+      tryingCount,
+      allergicCount,
+      percent: Math.round((passedCount / total) * 100),
+    };
+  }, [foodTrialStatuses]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fadeIn">
       
-      {/* Header Banner */}
-      <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      {/* SECTION 1: TOP CORE MANAGEMENT & EXPORT CARDS (Prominently moved to Toolbox) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        
+        {/* PDF Clinical Report Card */}
+        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-[#EBE7DF] shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-[#D9D1C2] transition-all">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#F9F6F0] rounded-bl-full -mr-6 -mt-6 pointer-events-none opacity-60"></div>
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#EBE7DF] text-[#2A2723] text-[11px] font-mono font-bold mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>BB-NOTE SCIENCE TOOLKIT</span>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#8C8475] bg-[#F2EDE4] px-3 py-1 rounded-full border border-[#D9D1C2] flex items-center gap-1.5">
+                <FileText className="w-3 h-3 text-[#2A2723]" />
+                兒科門診專用
+              </span>
+              <span className="text-xs font-mono font-bold text-[#8C8475]">PDF PRINTABLE</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#2A2723]">
-              新手爸媽育兒科學百寶箱
-            </h2>
-            <p className="text-xs text-[#6B6457] mt-1 font-sans">
-              整合兒科每日標準奶量計算、發燒就醫評估、清醒小睡時序表、母乳沖奶溫控、大便九色卡與外出媽媽包清單
+            <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#2A2723]">
+              匯出兒科就診專用報告
+            </h3>
+            <p className="text-xs sm:text-sm text-[#6B6457] mt-2 font-sans leading-relaxed">
+              一鍵彙整寶寶最新 WHO 生長百分位、未接種疫苗時程、近期就診診斷用藥與體溫紀錄，並支援看診自訂提問清單。
             </p>
           </div>
 
-          <button
-            onClick={toggleNoise}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-sans font-medium flex items-center space-x-2 transition-all ${
-              isWhiteNoisePlaying
-                ? 'bg-rose-700 text-white shadow-md animate-pulse'
-                : 'bg-[#2A2723] text-[#F9F6F0] hover:bg-[#4A453E]'
-            }`}
-          >
-            {isWhiteNoisePlaying ? (
-              <>
-                <VolumeX className="w-4 h-4" />
-                <span>停止白噪音 (播放中)</span>
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-4 h-4" />
-                <span>安撫白噪音</span>
-              </>
-            )}
-          </button>
+          <div className="pt-6 mt-4 border-t border-[#F2EDE4] flex items-center justify-between">
+            <span className="text-xs text-[#8C8475] font-sans">
+              支援一鍵另存 PDF / A4 醫療排版
+            </span>
+            <button
+              id="toolbox-open-report-btn"
+              onClick={onOpenPediatricReport}
+              className="px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] transition-all shadow-sm flex items-center gap-2 active:scale-95"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#D9D1C2]" />
+              <span>開啟就醫報告</span>
+            </button>
+          </div>
         </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-5 border-t border-[#EBE7DF] mt-5 no-scrollbar">
-          {[
-            { id: 'all', label: '全部工具' },
-            { id: 'feed', label: '標準奶量與母乳溫控' },
-            { id: 'health', label: '發燒與就醫評估' },
-            { id: 'sleep', label: '清醒時間與小睡表' },
-            { id: 'stool', label: '大便九色卡' },
-            { id: 'allergen', label: '副食品過敏檢核' },
-            { id: 'outing', label: '媽媽包必備清單' },
-          ].map((tab) => (
+        {/* Cloud Sync & Backup Card */}
+        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-[#EBE7DF] shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-[#D9D1C2] transition-all">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#E6E9F2]/50 rounded-bl-full -mr-6 -mt-6 pointer-events-none opacity-60"></div>
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#3A4050] bg-[#E6E9F2] px-3 py-1 rounded-full border border-[#D5D9E6] flex items-center gap-1.5">
+                <Cloud className="w-3 h-3 text-[#3A4050]" />
+                家庭多裝置同步
+              </span>
+              <div className="flex items-center gap-1.5 text-xs font-sans text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span>同步就緒</span>
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#2A2723]">
+                家庭雲端同步碼
+              </h3>
+              <span className="text-lg font-mono font-bold text-[#2A2723] bg-[#F2EDE4] px-2.5 py-0.5 rounded-lg border border-[#D9D1C2]">
+                {syncInfo.syncCode}
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[#6B6457] mt-2 font-sans leading-relaxed">
+              爸爸媽媽或保母可在不同手機輸入相同的 6 位數同步碼，隨時即時備份與跨裝置無縫讀取所有成長紀錄。
+            </p>
+          </div>
+
+          <div className="pt-6 mt-4 border-t border-[#F2EDE4] flex items-center justify-between">
+            <span className="text-[11px] text-[#8C8475] font-sans">
+              上次備份：<span className="font-mono text-[#6B6457]">{syncInfo.lastSyncedAt ? new Date(syncInfo.lastSyncedAt).toLocaleString('zh-TW', { hour12: false, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '尚未手動備份'}</span>
+            </span>
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as ToolTab)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                activeTab === tab.id
-                  ? 'bg-[#2A2723] text-[#F9F6F0]'
-                  : 'bg-white text-[#6B6457] border border-[#EBE7DF] hover:bg-[#EBE7DF]/80'
-              }`}
+              id="toolbox-open-sync-btn"
+              onClick={onOpenCloudSync}
+              className="px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#F2EDE4] hover:bg-[#E6DFD1] text-[#2A2723] border border-[#D9D1C2] transition-all flex items-center gap-2 active:scale-95"
             >
-              {tab.label}
+              <Cloud className="w-3.5 h-3.5 text-[#6B6457]" />
+              <span>同步與備份設定</span>
             </button>
-          ))}
+          </div>
         </div>
+
       </div>
 
-      {/* Grid of Tools */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* SECTION 2: PRACTICAL PARENTING TOOLS SUITE */}
+      <div className="bg-white rounded-[36px] p-6 sm:p-8 border border-[#EBE7DF] shadow-xs">
         
-        {/* 1. Milk Calculation Calculator Card */}
-        {(activeTab === 'all' || activeTab === 'feed') && (
-          <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs space-y-4">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-                <Calculator className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="font-serif font-bold text-base text-[#2A2723]">
-                  兒科每日標準奶量計算器
-                </h3>
-                <p className="text-[11px] text-[#8C8475] font-sans">
-                  公式：體重 (kg) × 150ml / 每日餵奶次數
-                </p>
-              </div>
-            </div>
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#EBE7DF]">
+          <div>
+            <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#8C8475] block mb-1">
+              Practical Parenting Utilities
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#2A2723]">
+              日常實用育兒小工具
+            </h2>
+            <p className="text-xs sm:text-sm text-[#6B6457] mt-1 font-sans">
+              專為寶寶日常照護設計的科學計算器、舒緩白噪音與副食品指南
+            </p>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3 bg-white p-4 rounded-2xl border border-[#EBE7DF]">
-              <div>
-                <label className="text-xs text-[#8C8475] block mb-1 font-sans">寶寶體重 (kg)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={babyWeightInput}
-                  onChange={(e) => setBabyWeightInput(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723] focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[#8C8475] block mb-1 font-sans">每日預計餵奶次數</label>
-                <input
-                  type="number"
-                  value={dailyFeedsInput}
-                  onChange={(e) => setDailyFeedsInput(parseInt(e.target.value, 10) || 1)}
-                  className="w-full bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723] focus:outline-none"
-                />
-              </div>
+          {/* Baby Status Reminder */}
+          <div className="flex items-center gap-3 bg-[#F9F6F0] px-4 py-2 rounded-2xl border border-[#EBE7DF] self-start sm:self-auto">
+            <Activity className="w-4 h-4 text-[#8C8475]" />
+            <div className="text-xs font-sans">
+              <span className="text-[#8C8475]">寶寶當前：</span>
+              <span className="font-bold text-[#2A2723] ml-1">{babyAge.text}</span>
+              <span className="text-[#8C8475] ml-2">最新體重：</span>
+              <span className="font-mono font-bold text-[#2A2723]">{defaultWeight > 0 ? `${defaultWeight} kg` : '未設定'}</span>
             </div>
+          </div>
+        </div>
 
-            <div className="bg-[#2A2723] text-[#F9F6F0] p-4 rounded-2xl flex items-center justify-between">
-              <div>
-                <div className="text-[11px] text-[#A69D8D]">建議 24 小時總奶量</div>
-                <div className="text-xl font-mono font-bold">{totalDailyMilk} ml</div>
-              </div>
-              <div className="text-right border-l border-[#4A453E] pl-4">
-                <div className="text-[11px] text-[#A69D8D]">每餐建議奶量 (約)</div>
-                <div className="text-xl font-mono font-bold text-amber-300">{perFeedMilk} ml</div>
-              </div>
-            </div>
+        {/* Tools Sub-Navigation Pills */}
+        <div className="flex items-center gap-2 py-6 overflow-x-auto no-scrollbar">
+          {[
+            { id: 'totalio', label: '💧 Total I/O 水分排泄監控', icon: Droplets, en: 'Total I/O' },
+            { id: 'milk', label: '奶量需求計算機', icon: Milk, en: 'Milk Calc' },
+            { id: 'fever', label: '發燒與退燒藥計算', icon: Thermometer, en: 'Fever Dosage' },
+            { id: 'whitenoise', label: '安撫白噪音播放器', icon: Volume2, en: 'White Noise' },
+            { id: 'wakewindow', label: '清醒作息時鐘', icon: Clock, en: 'Wake Windows' },
+            { id: 'foodtracker', label: '副食品過敏原打卡', icon: Utensils, en: 'Solid Food' },
+          ].map((tool) => {
+            const Icon = tool.icon;
+            const isActive = activeTool === tool.id;
+            return (
+              <button
+                key={tool.id}
+                id={`tool-subtab-${tool.id}`}
+                onClick={() => setActiveTool(tool.id as ActiveToolTab)}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-sans whitespace-nowrap transition-all duration-200 border shrink-0 ${
+                  isActive
+                    ? 'bg-[#2A2723] text-[#F9F6F0] border-[#2A2723] shadow-sm scale-[1.02]'
+                    : 'bg-[#F9F6F0] text-[#6B6457] border-[#EBE7DF] hover:bg-[#F2EDE4] hover:text-[#2A2723]'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-[#D9D1C2]' : 'text-[#8C8475]'}`} strokeWidth={1.75} />
+                <span className="font-medium">{tool.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
-            <div className="text-[11px] text-[#6B6457] bg-white p-3 rounded-xl border border-[#EBE7DF] space-y-1">
-              <span className="font-bold text-[#2A2723] block">💡 兒科醫師哺育提醒：</span>
-              <p>• 1-4 個月寶寶每日所需液體量約 120-150 ml/kg；</p>
-              <p>• 滿 6 個月以上副食品熱量比例提高後，每日奶量約維持 500-800 ml 即可。</p>
-            </div>
+        {/* TOOL 0: TOTAL I/O TRACKER */}
+        {activeTool === 'totalio' && (
+          <div className="pt-2 animate-fadeIn">
+            <TotalIOTracker
+              babyProfile={babyProfile}
+              growthRecords={growthRecords}
+              diaryEntries={diaryEntries}
+              onAddDiaryEntry={onAddDiaryEntry}
+            />
           </div>
         )}
 
-        {/* 2. Breastmilk & Formula Prep Temperature Guide */}
-        {(activeTab === 'all' || activeTab === 'feed') && (
-          <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs space-y-4">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-                <Milk className="w-4 h-4 text-amber-300" />
-              </div>
-              <div>
-                <h3 className="font-serif font-bold text-base text-[#2A2723]">
-                  母乳儲存期限 (3-3-3) 與 70°C 泡奶水溫
-                </h3>
-                <p className="text-[11px] text-[#8C8475] font-sans">
-                  世界衛生組織 (WHO) 嬰幼兒安全哺餵指引
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2.5">
-              <div className="bg-white p-3.5 rounded-2xl border border-[#EBE7DF] space-y-2">
+        {/* TOOL 1: MILK CALCULATOR */}
+        {activeTool === 'milk' && (
+          <div className="space-y-6 pt-2 animate-fadeIn">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Input Controls */}
+              <div className="lg:col-span-5 bg-[#F9F6F0] rounded-[28px] p-6 border border-[#EBE7DF] space-y-5">
                 <div className="flex items-center justify-between">
-                  <span className="font-serif font-bold text-xs text-[#2A2723]">🍼 母乳儲存黃金 3-3-3 口訣</span>
-                  <span className="text-[10px] font-mono bg-[#EBE7DF] px-2 py-0.5 rounded-md text-[#6B6457]">保存期限</span>
+                  <h4 className="text-base font-serif font-bold text-[#2A2723] flex items-center gap-2">
+                    <Milk className="w-4 h-4 text-[#8C7A58]" />
+                    <span>輸入寶寶參數</span>
+                  </h4>
+                  <span className="text-[11px] text-[#8C8475] font-sans">兒科標準公式</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="p-2 rounded-xl bg-[#F9F6F0]">
-                    <div className="font-bold text-[#2A2723]">室溫 &lt; 25°C</div>
-                    <div className="text-amber-800 font-mono font-bold mt-0.5">3 - 4 小時</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-[#F9F6F0]">
-                    <div className="font-bold text-[#2A2723]">冷藏室 &lt; 4°C</div>
-                    <div className="text-blue-800 font-mono font-bold mt-0.5">3 - 5 天</div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-[#F9F6F0]">
-                    <div className="font-bold text-[#2A2723]">冷凍庫 -18°C</div>
-                    <div className="text-emerald-800 font-mono font-bold mt-0.5">3 - 6 個月</div>
+
+                {/* Weight Input */}
+                <div>
+                  <label className="block text-xs font-sans text-[#6B6457] mb-1.5 flex justify-between">
+                    <span>寶寶目前體重 (kg)</span>
+                    <span className="font-mono text-[#2A2723] font-bold">{calcWeight} kg</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="2.0"
+                      max="15.0"
+                      step="0.1"
+                      value={calcWeight}
+                      onChange={(e) => setCalcWeight(parseFloat(e.target.value))}
+                      className="flex-1 accent-[#2A2723] h-2 bg-[#EBE7DF] rounded-lg cursor-pointer"
+                    />
+                    <input
+                      type="number"
+                      min="2.0"
+                      max="20.0"
+                      step="0.1"
+                      value={calcWeight}
+                      onChange={(e) => setCalcWeight(parseFloat(e.target.value) || 4.5)}
+                      className="w-20 px-3 py-1.5 bg-white border border-[#D9D1C2] rounded-xl font-mono text-sm text-center font-bold text-[#2A2723]"
+                    />
                   </div>
                 </div>
+
+                {/* Meals Per Day Input */}
+                <div>
+                  <label className="block text-xs font-sans text-[#6B6457] mb-1.5 flex justify-between">
+                    <span>每日餵奶總餐數 (次)</span>
+                    <span className="font-mono text-[#2A2723] font-bold">{mealsPerDay} 餐/日 (約每 {parseFloat((24 / mealsPerDay).toFixed(1))} 小時)</span>
+                  </label>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {[4, 5, 6, 7, 8].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setMealsPerDay(n)}
+                        className={`py-2 rounded-xl text-xs font-mono font-bold border transition-all ${
+                          mealsPerDay === n
+                            ? 'bg-[#2A2723] text-[#F9F6F0] border-[#2A2723]'
+                            : 'bg-white text-[#6B6457] border-[#D9D1C2] hover:bg-[#F2EDE4]'
+                        }`}
+                      >
+                        {n} 餐
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Feeding Standard */}
+                <div>
+                  <label className="block text-xs font-sans text-[#6B6457] mb-1.5">
+                    月齡與食量階段標準
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'early', label: '初生適應期', sub: '100~120ml/kg' },
+                      { id: 'standard', label: '標準需求量', sub: '120~150ml/kg' },
+                      { id: 'high', label: '猛長期需求', sub: '140~160ml/kg' },
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setFeedingStandard(st.id as any)}
+                        className={`p-2.5 rounded-2xl text-left border transition-all ${
+                          feedingStandard === st.id
+                            ? 'bg-white border-[#2A2723] ring-1 ring-[#2A2723]'
+                            : 'bg-white/60 border-[#EBE7DF] hover:bg-white'
+                        }`}
+                      >
+                        <div className="text-xs font-medium text-[#2A2723]">{st.label}</div>
+                        <div className="text-[10px] text-[#8C8475] font-mono mt-0.5">{st.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
               </div>
 
-              <div className="bg-amber-50/70 border border-amber-300 p-3.5 rounded-2xl text-xs text-amber-950 space-y-1.5">
-                <div className="font-serif font-bold flex items-center space-x-1.5 text-amber-900">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span>配方奶沖泡水溫必須 ≥ 70°C！</span>
+              {/* Result Display */}
+              <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  
+                  {/* Single Meal Output */}
+                  <div className="bg-[#F5EEDB] rounded-[28px] p-6 border border-[#E5DBBF]">
+                    <span className="text-[10px] font-sans uppercase tracking-widest text-[#8C7A58] block mb-1">
+                      單餐建議沖泡 / 瓶餵量
+                    </span>
+                    <div className="flex items-baseline gap-1.5 my-2">
+                      <span className="text-3xl sm:text-4xl font-serif font-bold text-[#2A2723] font-mono">
+                        {milkResults.perMealMin} ~ {milkResults.perMealMax}
+                      </span>
+                      <span className="text-sm font-sans text-[#8C7A58] font-bold">ml / 餐</span>
+                    </div>
+                    <p className="text-xs text-[#6B6457] font-sans leading-relaxed">
+                      依每日 {milkResults.mealsPerDay} 餐均分計算，可依寶寶飢餓訊號微調 ±10~20ml。
+                    </p>
+                  </div>
+
+                  {/* Daily Total Output */}
+                  <div className="bg-[#E6EBE6] rounded-[28px] p-6 border border-[#D5DDD5]">
+                    <span className="text-[10px] font-sans uppercase tracking-widest text-[#5A6D5A] block mb-1">
+                      全日建議總奶量區間
+                    </span>
+                    <div className="flex items-baseline gap-1.5 my-2">
+                      <span className="text-3xl sm:text-4xl font-serif font-bold text-[#2A2723] font-mono">
+                        {milkResults.totalMin} ~ {milkResults.totalMax}
+                      </span>
+                      <span className="text-sm font-sans text-[#5A6D5A] font-bold">ml / 日</span>
+                    </div>
+                    <p className="text-xs text-[#6B6457] font-sans leading-relaxed">
+                      體重 {milkResults.weight} kg 之全日基本水份與熱量攝取基準。
+                    </p>
+                  </div>
+
                 </div>
-                <p className="text-[11px] leading-relaxed text-amber-900">
-                  嬰兒配方奶粉非無菌製品，必須以 <strong>70°C 以上開水</strong> 沖泡，以有效殺滅致命的阪崎腸桿菌 (Cronobacter) 與沙門氏菌，再隔水降溫至 40°C 餵哺。
-                </p>
+
+                {/* Pediatric Guidance Tips */}
+                <div className="bg-[#F9F6F0] rounded-[24px] p-5 border border-[#EBE7DF] space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#2A2723]">
+                    <Info className="w-4 h-4 text-[#8C8475]" />
+                    <span>兒科醫師奶量充足評估指標：</span>
+                  </div>
+                  <ul className="text-xs text-[#6B6457] space-y-1.5 font-sans list-disc list-inside">
+                    <li><strong className="text-[#2A2723]">尿布重量：</strong>每日應有 6 片以上沈甸甸的濕尿布（每片約 3~4 湯匙水重），尿液清澈淡黃。</li>
+                    <li><strong className="text-[#2A2723]">體重成長：</strong>出生兩週後恢復出生體重，前 3 個月每週平均增重 150~200 克。</li>
+                    <li><strong className="text-[#2A2723]">親餵媽媽：</strong>母乳為供需平衡且消化迅速，可依寶寶尋乳訊號按需餵哺，不必嚴格限縮毫升數。</li>
+                  </ul>
+                </div>
+
               </div>
+
             </div>
           </div>
         )}
 
-        {/* 3. Pediatric Fever Assessment Guide */}
-        {(activeTab === 'all' || activeTab === 'health') && (
-          <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs space-y-4">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-                <Thermometer className="w-4 h-4 text-rose-400" />
+        {/* TOOL 2: FEVER & ANTIPYRETIC CALCULATOR */}
+        {activeTool === 'fever' && (
+          <div className="space-y-6 pt-2 animate-fadeIn">
+            
+            {/* Red Flag Emergency Warning if under 3 months */}
+            {feverAssessment.isUnder3Months && feverAssessment.t >= 38.0 && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-[24px] p-5 flex items-start gap-4">
+                <AlertCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-serif font-bold text-red-900">
+                    ⚠️ 緊急警訊：未滿 3 個月嬰兒發燒為兒科急症！
+                  </h4>
+                  <p className="text-xs text-red-800 font-sans mt-1 leading-relaxed">
+                    未滿 3 個月新生兒免疫系統尚未健全，體溫達 38.0°C 容易隱藏嚴重細菌感染，<strong>請勿自行在家餵食退燒藥掩蓋病情</strong>，應立即攜帶健保卡前往大型醫院兒科急診就醫檢查。
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-serif font-bold text-base text-[#2A2723]">
-                  嬰幼兒發燒就醫評估與照護指引
-                </h3>
-                <p className="text-[11px] text-[#8C8475] font-sans">
-                  輸入當前測量體溫，快速比對兒科紅旗危險警訊
-                </p>
-              </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3 bg-white p-3.5 rounded-2xl border border-[#EBE7DF]">
-              <div>
-                <label className="text-xs text-[#8C8475] block mb-1 font-sans">量測體溫 (°C)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={feverTempInput}
-                  onChange={(e) => setFeverTempInput(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723] focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[#8C8475] block mb-1 font-sans">寶寶月齡 (月)</label>
-                <input
-                  type="number"
-                  value={feverAgeMonths}
-                  onChange={(e) => setFeverAgeMonths(parseInt(e.target.value, 10) || 0)}
-                  className="w-full bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723] focus:outline-none"
-                />
-              </div>
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Controls */}
+              <div className="lg:col-span-5 bg-[#F9F6F0] rounded-[28px] p-6 border border-[#EBE7DF] space-y-5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-base font-serif font-bold text-[#2A2723] flex items-center gap-2">
+                    <Thermometer className="w-4 h-4 text-[#8C5D5D]" />
+                    <span>體溫與體重輸入</span>
+                  </h4>
+                  <span className="text-[11px] text-[#8C8475] font-sans">衛福部兒科用藥指引</span>
+                </div>
 
-            {/* Assessment result alert box */}
-            <div className={`p-4 rounded-2xl border text-xs space-y-1.5 ${feverEval.color}`}>
-              <div className="font-serif font-bold flex items-center justify-between">
-                <span>{feverEval.badge}</span>
-                <span className="font-mono">{feverTempInput}°C</span>
-              </div>
-              <p className="leading-relaxed text-[11px]">{feverEval.message}</p>
-            </div>
+                {/* Weight Input */}
+                <div>
+                  <label className="block text-xs font-sans text-[#6B6457] mb-1.5 flex justify-between">
+                    <span>寶寶體重 (kg)</span>
+                    <span className="font-mono text-[#2A2723] font-bold">{feverWeight} kg</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="3.0"
+                    max="18.0"
+                    step="0.1"
+                    value={feverWeight}
+                    onChange={(e) => setFeverWeight(parseFloat(e.target.value))}
+                    className="w-full accent-[#8C5D5D] h-2 bg-[#EBE7DF] rounded-lg cursor-pointer"
+                  />
+                </div>
 
-            {/* Red flags */}
-            <div className="bg-white p-3.5 rounded-2xl border border-[#EBE7DF] text-[11px] space-y-1 text-[#6B6457]">
-              <span className="font-bold text-rose-800 block">🚨 兒科立即就醫 5 大紅旗警訊：</span>
-              <p>1. 意識不清、嗜睡難以叫醒，或眼神呆滯無反應</p>
-              <p>2. 呼吸急促、喘鳴、胸骨肋骨凹陷或發出呻吟聲</p>
-              <p>3. 發生熱痙攣抽搐發作</p>
-              <p>4. 皮膚出現紫斑、發紺或異常蒼白</p>
-              <p>5. 持續嘔吐無法進食，或 24 小時尿布少於 3 片（脫水）</p>
+                {/* Temperature Input */}
+                <div>
+                  <label className="block text-xs font-sans text-[#6B6457] mb-1.5 flex justify-between">
+                    <span>實測體溫 (°C)</span>
+                    <span className="font-mono text-[#8C5D5D] font-bold text-base">{feverTemp} °C</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="36.0"
+                      max="41.0"
+                      step="0.1"
+                      value={feverTemp}
+                      onChange={(e) => setFeverTemp(parseFloat(e.target.value))}
+                      className="flex-1 accent-[#8C5D5D] h-2 bg-[#EBE7DF] rounded-lg cursor-pointer"
+                    />
+                    <input
+                      type="number"
+                      min="35.0"
+                      max="42.0"
+                      step="0.1"
+                      value={feverTemp}
+                      onChange={(e) => setFeverTemp(parseFloat(e.target.value) || 38.0)}
+                      className="w-20 px-3 py-1.5 bg-white border border-[#D9D1C2] rounded-xl font-mono text-sm text-center font-bold text-[#8C5D5D]"
+                    />
+                  </div>
+                </div>
+
+                {/* Measurement Route */}
+                <div>
+                  <label className="block text-xs font-sans text-[#6B6457] mb-1.5">測量部位</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'ear', label: '耳溫 (常見標準)' },
+                      { id: 'rectal', label: '肛溫 (最精準)' },
+                      { id: 'axillary', label: '腋溫 (+0.5°C)' },
+                      { id: 'forehead', label: '額溫 (易受環境干擾)' },
+                    ].map((route) => (
+                      <button
+                        key={route.id}
+                        type="button"
+                        onClick={() => setTempRoute(route.id as any)}
+                        className={`p-2.5 rounded-xl text-left text-xs font-sans border transition-all ${
+                          tempRoute === route.id
+                            ? 'bg-[#2A2723] text-[#F9F6F0] border-[#2A2723]'
+                            : 'bg-white text-[#6B6457] border-[#D9D1C2] hover:bg-[#F2EDE4]'
+                        }`}
+                      >
+                        {route.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Liquid Medication Dosage Cards */}
+              <div className="lg:col-span-7 space-y-4">
+                
+                {/* Temperature Status Banner */}
+                <div className={`p-4 rounded-[24px] border ${feverAssessment.colorClass} flex items-center justify-between`}>
+                  <div className="flex items-center gap-3">
+                    <Activity className="w-5 h-5 shrink-0" />
+                    <div>
+                      <div className="text-sm font-serif font-bold">{feverAssessment.label}</div>
+                      <div className="text-xs opacity-80 mt-0.5">實測值 {feverAssessment.t} °C ｜ 體重 {feverAssessment.weight} kg</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-sans font-bold px-3 py-1 rounded-full bg-white/80">
+                    {feverAssessment.t < 38.0 ? '暫不需退燒藥' : '體溫 ≥ 38.5°C 且不適時評估'}
+                  </span>
+                </div>
+
+                {/* 1. Acetaminophen Syrup (安佳適) */}
+                <div className="bg-white rounded-[28px] p-5 border border-[#EBE7DF] shadow-xs">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-sans uppercase tracking-widest text-[#8C5D5D] bg-[#F2E6E6] px-2.5 py-0.5 rounded-full font-bold">
+                          第一線退燒常用
+                        </span>
+                        <h4 className="text-base font-serif font-bold text-[#2A2723]">
+                          乙醯胺酚糖漿 (Acetaminophen, 24mg/ml)
+                        </h4>
+                      </div>
+                      <p className="text-xs text-[#8C8475] mt-1">
+                        如：安佳適 (Anti-phen) 甜味口服懸液劑、普拿疼糖漿
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-[#8C8475] font-sans">單次建議服用量</div>
+                      <div className="text-2xl font-serif font-bold text-[#8C5D5D] font-mono">
+                        {feverAssessment.acetRecMl} <span className="text-xs font-sans text-[#2A2723]">ml</span>
+                      </div>
+                      <div className="text-[10px] font-mono text-[#8C8475]">
+                        ({feverAssessment.acetMinMl} ~ {feverAssessment.acetMaxMl} ml)
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#F2EDE4] flex items-center justify-between text-xs text-[#6B6457] font-sans flex-wrap gap-2">
+                    <span>⏱️ 服用間隔：<strong>至少 4 ~ 6 小時</strong></span>
+                    <span>🚫 每日上限：<strong>24 小時不超過 5 次</strong></span>
+                  </div>
+                </div>
+
+                {/* 2. Ibuprofen Suspension (依普芬) */}
+                <div className={`rounded-[28px] p-5 border shadow-xs ${
+                  feverAssessment.isIbuprofenAllowed 
+                    ? 'bg-white border-[#EBE7DF]' 
+                    : 'bg-[#F9F6F0] border-[#EBE7DF] opacity-80'
+                }`}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-sans uppercase tracking-widest text-[#5F6B8A] bg-[#E6E9F2] px-2.5 py-0.5 rounded-full font-bold">
+                          消炎解熱 (滿6個月適用)
+                        </span>
+                        <h4 className="text-base font-serif font-bold text-[#2A2723]">
+                          依普芬口服懸液 (Ibuprofen, 20mg/ml)
+                        </h4>
+                      </div>
+                      <p className="text-xs text-[#8C8475] mt-1">
+                        如：依普芬 (Ibuprofen) 糖漿、馬蓋先懸液（需滿 6 個月以上）
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-[#8C8475] font-sans">單次建議服用量</div>
+                      {feverAssessment.isIbuprofenAllowed ? (
+                        <>
+                          <div className="text-2xl font-serif font-bold text-[#5F6B8A] font-mono">
+                            {feverAssessment.ibuRecMl} <span className="text-xs font-sans text-[#2A2723]">ml</span>
+                          </div>
+                          <div className="text-[10px] font-mono text-[#8C8475]">
+                            ({feverAssessment.ibuMinMl} ~ {feverAssessment.ibuMaxMl} ml)
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-xs text-red-600 font-bold bg-red-50 px-2 py-1 rounded-md">未滿6個月禁用</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#F2EDE4] flex items-center justify-between text-xs text-[#6B6457] font-sans flex-wrap gap-2">
+                    <span>⏱️ 服用間隔：<strong>至少 6 ~ 8 小時</strong></span>
+                    <span>⚠️ 脫水、嘔吐或腎功能異常時請先諮詢醫師</span>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           </div>
         )}
 
-        {/* 4. Wake Windows & Sleep Schedule */}
-        {(activeTab === 'all' || activeTab === 'sleep') && (
-          <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs space-y-4">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-                <Moon className="w-4 h-4 text-indigo-300" />
-              </div>
-              <div>
-                <h3 className="font-serif font-bold text-base text-[#2A2723]">
-                  寶寶清醒時間 (Wake Windows) 與小睡表
-                </h3>
-                <p className="text-[11px] text-[#8C8475] font-sans">
-                  掌握嬰幼兒生理清醒耐受極限，避免過度疲勞大哭
-                </p>
-              </div>
+        {/* TOOL 3: WHITE NOISE & SOUND SYNTHESIZER */}
+        {activeTool === 'whitenoise' && (
+          <div className="space-y-6 pt-2 animate-fadeIn">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              {[
+                { 
+                  id: 'heartbeat', 
+                  name: '子宮心跳音', 
+                  desc: '重現母親子宮規律咚咚聲，給予初生極致安全感', 
+                  icon: Heart, 
+                  color: 'bg-[#F2E6E6] border-[#E0D0D0] text-[#8C5D5D]' 
+                },
+                { 
+                  id: 'rain', 
+                  name: '舒緩粉紅雨聲', 
+                  desc: '自然柔和落雨頻率，有效阻隔外界突發噪音', 
+                  icon: Sparkles, 
+                  color: 'bg-[#E6E9F2] border-[#D5D9E6] text-[#5F6B8A]' 
+                },
+                { 
+                  id: 'shushing', 
+                  name: '溫柔安撫噓聲', 
+                  desc: '模擬大人在耳邊輕柔的 Shh... 呼吸節奏', 
+                  icon: Volume2, 
+                  color: 'bg-[#E6EBE6] border-[#D5DDD5] text-[#5A6D5A]' 
+                },
+                { 
+                  id: 'lullaby', 
+                  name: '水晶音樂盒', 
+                  desc: '清脆微甜的搖籃旋律，引導大腦放鬆進入夢鄉', 
+                  icon: Activity, 
+                  color: 'bg-[#F5EEDB] border-[#E5DBBF] text-[#8C7A58]' 
+                },
+              ].map((snd) => {
+                const Icon = snd.icon;
+                const isSelected = activeSound === snd.id;
+                const isCurrentlyPlaying = isPlayingAudio && isSelected;
+                return (
+                  <div
+                    key={snd.id}
+                    className={`rounded-[28px] p-5 border transition-all flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-white border-[#2A2723] ring-2 ring-[#2A2723]/20 shadow-md scale-[1.01]'
+                        : 'bg-[#F9F6F0] border-[#EBE7DF] hover:bg-white'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`p-2.5 rounded-2xl ${snd.color}`}>
+                          <Icon className="w-5 h-5" strokeWidth={1.75} />
+                        </div>
+                        {isCurrentlyPlaying && (
+                          <span className="flex items-center gap-1.5 text-[10px] font-sans text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            播放中
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-base font-serif font-bold text-[#2A2723]">{snd.name}</h4>
+                      <p className="text-xs text-[#6B6457] mt-1.5 font-sans leading-relaxed">{snd.desc}</p>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-[#EBE7DF]">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSound(snd.id as SoundType)}
+                        className={`w-full py-2.5 rounded-full text-xs font-sans uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+                          isCurrentlyPlaying
+                            ? 'bg-[#8C5D5D] text-white hover:bg-[#784A4A]'
+                            : 'bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833]'
+                        }`}
+                      >
+                        {isCurrentlyPlaying ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5 fill-current" />
+                            <span>暫停播放</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>播放此音效</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
             </div>
 
-            {/* Age Group Buttons */}
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-              {Object.keys(wakeWindowData).map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedAgeGroup(key)}
-                  className={`py-1.5 px-2 rounded-xl text-xs font-mono font-medium text-center transition-all ${
-                    selectedAgeGroup === key
-                      ? 'bg-[#2A2723] text-[#F9F6F0]'
-                      : 'bg-white text-[#6B6457] border border-[#EBE7DF] hover:bg-[#EBE7DF]'
-                  }`}
-                >
-                  {key}
-                </button>
-              ))}
-            </div>
-
-            {/* Selected age info card */}
-            <div className="bg-white p-4 rounded-2xl border border-[#EBE7DF] space-y-3">
-              <div className="flex items-center justify-between border-b border-[#EBE7DF] pb-2">
-                <span className="font-serif font-bold text-sm text-[#2A2723]">
-                  {wakeWindowData[selectedAgeGroup].title}
+            {/* Audio Control Bar */}
+            <div className="bg-[#F9F6F0] rounded-[28px] p-6 border border-[#EBE7DF] flex flex-col md:flex-row items-center justify-between gap-6">
+              
+              {/* Volume Slider */}
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <Volume2 className="w-4 h-4 text-[#8C8475] shrink-0" />
+                <span className="text-xs font-sans text-[#6B6457] shrink-0">音量控制：</span>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1.0"
+                  step="0.05"
+                  value={volume}
+                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                  className="w-full md:w-36 accent-[#2A2723] h-2 bg-[#D9D1C2] rounded-lg cursor-pointer"
+                />
+                <span className="font-mono text-xs font-bold text-[#2A2723] w-10 text-right">
+                  {Math.round(volume * 100)}%
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="p-2.5 rounded-xl bg-[#F9F6F0]">
-                  <div className="text-[10px] text-[#8C8475]">清醒耐受極限</div>
-                  <div className="font-mono font-bold text-amber-800 text-xs sm:text-sm mt-0.5">
-                    {wakeWindowData[selectedAgeGroup].window}
-                  </div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#F9F6F0]">
-                  <div className="text-[10px] text-[#8C8475]">白天小睡次數</div>
-                  <div className="font-mono font-bold text-[#2A2723] text-xs sm:text-sm mt-0.5">
-                    {wakeWindowData[selectedAgeGroup].naps}
-                  </div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#F9F6F0]">
-                  <div className="text-[10px] text-[#8C8475]">全日總睡眠</div>
-                  <div className="font-mono font-bold text-indigo-900 text-xs sm:text-sm mt-0.5">
-                    {wakeWindowData[selectedAgeGroup].totalSleep}
-                  </div>
-                </div>
+              {/* Sleep Timer Selector */}
+              <div className="flex items-center gap-2 w-full md:w-auto justify-center">
+                <Clock className="w-4 h-4 text-[#8C8475] shrink-0" />
+                <span className="text-xs font-sans text-[#6B6457]">定時關閉：</span>
+                {[
+                  { m: 15, label: '15分' },
+                  { m: 30, label: '30分' },
+                  { m: 60, label: '60分' },
+                  { m: 0, label: '連續' },
+                ].map((t) => (
+                  <button
+                    key={t.m}
+                    type="button"
+                    onClick={() => handleTimerChange(t.m)}
+                    className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-all ${
+                      timerMinutes === t.m
+                        ? 'bg-[#2A2723] text-[#F9F6F0] border-[#2A2723]'
+                        : 'bg-white text-[#6B6457] border-[#D9D1C2] hover:bg-[#F2EDE4]'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
 
-              <p className="text-[11px] text-[#6B6457] leading-relaxed bg-[#F9F6F0]/60 p-3 rounded-xl">
-                💡 <strong>照護重點：</strong> {wakeWindowData[selectedAgeGroup].tips}
-              </p>
+              {/* Master Play/Stop & Remaining Time */}
+              <div className="flex items-center gap-3 shrink-0">
+                {isPlayingAudio && remainingSecs !== null && (
+                  <span className="text-xs font-mono text-[#8C5D5D] font-bold bg-white px-3 py-1 rounded-full border border-[#E0D0D0]">
+                    剩餘 {Math.floor(remainingSecs / 60)}分 {remainingSecs % 60}秒
+                  </span>
+                )}
+                {isPlayingAudio ? (
+                  <button
+                    type="button"
+                    onClick={handleStopAudio}
+                    className="px-4 py-2 rounded-full bg-[#8C5D5D] text-white text-xs font-sans hover:bg-[#784A4A] transition-all flex items-center gap-1.5"
+                  >
+                    <Pause className="w-3.5 h-3.5 fill-current" />
+                    <span>停止所有音效</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSound(activeSound)}
+                    className="px-4 py-2 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-sans hover:bg-[#3D3833] transition-all flex items-center gap-1.5"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>啟動播放</span>
+                  </button>
+                )}
+              </div>
+
             </div>
           </div>
         )}
 
-        {/* 5. Infant Stool Color 9-Card Guide */}
-        {(activeTab === 'all' || activeTab === 'stool') && (
-          <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs space-y-4 md:col-span-2">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-                <ShieldAlert className="w-4 h-4 text-amber-400" />
+        {/* TOOL 4: WAKE WINDOW & SLEEP ROUTINE */}
+        {activeTool === 'wakewindow' && (
+          <div className="space-y-6 pt-2 animate-fadeIn">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
+              {/* Controls */}
+              <div className="lg:col-span-5 bg-[#F9F6F0] rounded-[28px] p-6 border border-[#EBE7DF] space-y-5">
+                <div>
+                  <span className="text-[10px] font-sans uppercase tracking-widest text-[#8C8475] block mb-1">
+                    當前月齡評估
+                  </span>
+                  <h4 className="text-lg font-serif font-bold text-[#2A2723]">
+                    {wakeWindowData.stageLabel}
+                  </h4>
+                  <p className="text-xs text-[#6B6457] mt-1 font-sans">
+                    寶寶實足年齡 {babyAge.text} 之科學清醒極限
+                  </p>
+                </div>
+
+                {/* Last Wake Time Input */}
+                <div>
+                  <label className="block text-xs font-sans text-[#6B6457] mb-1.5">
+                    寶寶上次小睡醒來時間：
+                  </label>
+                  <input
+                    type="time"
+                    value={lastWakeTime}
+                    onChange={(e) => setLastWakeTime(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-[#D9D1C2] rounded-2xl font-mono text-base font-bold text-[#2A2723] focus:outline-none focus:border-[#2A2723]"
+                  />
+                </div>
+
+                {/* Stage Reference Stats */}
+                <div className="bg-white rounded-2xl p-4 border border-[#EBE7DF] space-y-2 text-xs font-sans">
+                  <div className="flex justify-between py-1 border-b border-[#F2EDE4]">
+                    <span className="text-[#8C8475]">建議極限清醒時間：</span>
+                    <span className="font-mono font-bold text-[#2A2723]">
+                      {wakeWindowData.windowMinMins} ~ {wakeWindowData.windowMaxMins} 分鐘
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-[#F2EDE4]">
+                    <span className="text-[#8C8475]">全日建議小睡次數：</span>
+                    <span className="font-medium text-[#2A2723]">{wakeWindowData.napsPerDay}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-[#8C8475]">全日理想總睡眠：</span>
+                    <span className="font-medium text-[#2A2723]">{wakeWindowData.totalSleep}</span>
+                  </div>
+                </div>
+
               </div>
+
+              {/* Recommended Next Nap Target */}
+              <div className="lg:col-span-7 space-y-4 flex flex-col justify-between">
+                
+                <div className="bg-[#E6E9F2] rounded-[28px] p-6 sm:p-7 border border-[#D5D9E6]">
+                  <span className="text-[10px] font-sans uppercase tracking-widest text-[#5F6B8A] block mb-1">
+                    預估下次最佳入睡準備時間
+                  </span>
+                  <div className="flex items-baseline gap-2 my-2">
+                    <span className="text-3xl sm:text-4xl font-serif font-bold text-[#2A2723] font-mono">
+                      {wakeWindowData.nextNapMinTime} ~ {wakeWindowData.nextNapMaxTime}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#5F6B8A] font-sans leading-relaxed">
+                    請於目標時間前 15 分鐘開始進行睡眠儀式（調暗燈光、換乾淨尿布、播放白噪音、輕抱搖安撫）。
+                  </p>
+                </div>
+
+                {/* Sleep Signs Guide */}
+                <div className="bg-[#F9F6F0] rounded-[24px] p-5 border border-[#EBE7DF] space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#2A2723]">
+                    <BellRing className="w-4 h-4 text-[#8C8475]" />
+                    <span>抓住黃金入睡訊號（避免過累大哭）：</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-[#6B6457] font-sans">
+                    <div className="bg-white p-2.5 rounded-xl border border-[#EBE7DF]">
+                      <strong className="text-[#2A2723] block">初階睡眠訊號（最佳時機）：</strong>
+                      眼神放空發呆、動作減緩、微揉眼睛、偶爾打哈欠。
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-[#EBE7DF]">
+                      <strong className="text-red-700 block">過累警訊（需更多安撫）：</strong>
+                      抓耳朵、身體弓起後仰、狂躁尖叫、摩擦臉頰大哭。
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TOOL 5: SOLID FOOD ALLERGEN TRACKER */}
+        {activeTool === 'foodtracker' && (
+          <div className="space-y-6 pt-2 animate-fadeIn">
+            
+            {/* Progress & Category Filter */}
+            <div className="bg-[#F9F6F0] rounded-[28px] p-5 sm:p-6 border border-[#EBE7DF] flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="font-serif font-bold text-base text-[#2A2723]">
-                  台灣衛福部「嬰兒大便九色卡」膽道閉鎖篩檢對照
-                </h3>
-                <p className="text-[11px] text-[#8C8475] font-sans">
-                  出生滿 60 天內為膽道閉鎖黃金治療期，點選色號立即查看異常與正常分析
+                <div className="flex items-center gap-3">
+                  <h4 className="text-lg font-serif font-bold text-[#2A2723]">
+                    副食品食材探索與過敏解鎖
+                  </h4>
+                  <span className="text-xs font-mono font-bold px-3 py-0.5 rounded-full bg-[#D9D1C2] text-[#2A2723]">
+                    已解鎖 {foodStats.passedCount} / {foodStats.total} 種 ({foodStats.percent}%)
+                  </span>
+                </div>
+                <p className="text-xs text-[#6B6457] mt-1 font-sans">
+                  建議 4~6 個月開始引入副食品，每次單一食材少量嘗試，連續觀察 3 天無過敏再換下一種。
                 </p>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { id: 'all', label: '全部食材' },
+                  { id: 'grains', label: '五穀根莖' },
+                  { id: 'vegetables', label: '蔬菜類' },
+                  { id: 'fruits', label: '水果類' },
+                  { id: 'proteins', label: '肉品蛋類' },
+                  { id: 'allergens', label: '常見高致敏' },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setFoodCategoryFilter(cat.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-sans transition-all ${
+                      foodCategoryFilter === cat.id
+                        ? 'bg-[#2A2723] text-[#F9F6F0] font-bold shadow-xs'
+                        : 'bg-white text-[#6B6457] border border-[#D9D1C2] hover:bg-[#F2EDE4]'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* 9 Color Grid */}
-            <div className="grid grid-cols-3 sm:grid-cols-9 gap-2">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => {
-                const item = stoolColorGuide[num];
-                const isSelected = selectedStoolNumber === num;
+            {/* Food Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredFoods.map((food) => {
+                const currentStatus = foodTrialStatuses[food.id] || 'untried';
+                
+                let statusBadge = {
+                  label: '尚未嘗試',
+                  color: 'bg-[#F2EDE4] text-[#8C8475] border-[#D9D1C2]',
+                };
+                if (currentStatus === 'trying') {
+                  statusBadge = {
+                    label: '嘗試觀察中 (第 1~3 天)',
+                    color: 'bg-amber-50 text-amber-800 border-amber-200',
+                  };
+                } else if (currentStatus === 'passed') {
+                  statusBadge = {
+                    label: '已解鎖安全食材',
+                    color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                  };
+                } else if (currentStatus === 'allergic') {
+                  statusBadge = {
+                    label: '疑似過敏 (先暫停)',
+                    color: 'bg-red-50 text-red-800 border-red-200',
+                  };
+                }
+
                 return (
-                  <button
-                    key={num}
-                    onClick={() => setSelectedStoolNumber(num)}
-                    style={{ backgroundColor: item.hex }}
-                    className={`h-16 rounded-2xl p-2 flex flex-col justify-between text-left transition-all border-2 ${
-                      isSelected ? 'border-[#2A2723] scale-105 shadow-md' : 'border-black/10 hover:opacity-90'
+                  <div
+                    key={food.id}
+                    className={`bg-white rounded-[24px] p-5 border transition-all flex flex-col justify-between ${
+                      currentStatus === 'passed' ? 'border-emerald-200 bg-emerald-50/10' :
+                      currentStatus === 'trying' ? 'border-amber-200 bg-amber-50/10' :
+                      currentStatus === 'allergic' ? 'border-red-200 bg-red-50/10' : 'border-[#EBE7DF]'
                     }`}
                   >
-                    <div className="flex items-center justify-between w-full">
-                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                        item.isNormal ? 'bg-black/40 text-white' : 'bg-rose-800 text-white'
-                      }`}>
-                        {num}號
-                      </span>
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h5 className="text-base font-serif font-bold text-[#2A2723]">
+                          {food.name}
+                        </h5>
+                        <span className={`text-[10px] font-sans px-2.5 py-0.5 rounded-full border font-medium ${statusBadge.color}`}>
+                          {statusBadge.label}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[11px] text-[#8C8475] font-sans mb-2">
+                        <span>建議月齡：<strong>滿 {food.recommendedAgeMonths} 個月</strong></span>
+                        <span>•</span>
+                        <span className={food.allergenRisk === 'high' ? 'text-amber-700 font-bold' : ''}>
+                          致敏風險：{food.allergenRisk === 'high' ? '高 (及早少量)' : food.allergenRisk === 'medium' ? '中' : '低'}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-[#6B6457] font-sans leading-relaxed bg-[#F9F6F0] p-2.5 rounded-xl border border-[#EBE7DF]">
+                        👩‍🍳 <strong className="text-[#2A2723]">料理要點：</strong>{food.prepTips}
+                      </p>
                     </div>
-                    <span className={`text-[10px] font-bold ${
-                      item.isNormal ? 'text-white drop-shadow-xs' : 'text-stone-900'
-                    }`}>
-                      {item.isNormal ? '正常' : '不正常'}
-                    </span>
-                  </button>
+
+                    {/* Status Action Buttons */}
+                    <div className="mt-4 pt-3 border-t border-[#F2EDE4] grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFoodStatus(food.id, 'trying')}
+                        className={`py-1.5 rounded-lg text-[11px] font-sans border transition-all ${
+                          currentStatus === 'trying'
+                            ? 'bg-amber-600 text-white border-amber-600 font-bold'
+                            : 'bg-white text-[#6B6457] border-[#D9D1C2] hover:bg-amber-50'
+                        }`}
+                      >
+                        🟡 觀察中
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFoodStatus(food.id, 'passed')}
+                        className={`py-1.5 rounded-lg text-[11px] font-sans border transition-all ${
+                          currentStatus === 'passed'
+                            ? 'bg-emerald-700 text-white border-emerald-700 font-bold'
+                            : 'bg-white text-[#6B6457] border-[#D9D1C2] hover:bg-emerald-50'
+                        }`}
+                      >
+                        🟢 過關安全
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFoodStatus(food.id, 'allergic')}
+                        className={`py-1.5 rounded-lg text-[11px] font-sans border transition-all ${
+                          currentStatus === 'allergic'
+                            ? 'bg-red-700 text-white border-red-700 font-bold'
+                            : 'bg-white text-[#6B6457] border-[#D9D1C2] hover:bg-red-50'
+                        }`}
+                      >
+                        🔴 疑似過敏
+                      </button>
+                    </div>
+
+                  </div>
                 );
               })}
             </div>
 
-            {/* Selected Stool Details */}
-            {selectedStoolNumber && (
-              <div className={`p-4 rounded-2xl border text-xs space-y-1.5 ${
-                stoolColorGuide[selectedStoolNumber].isNormal
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-                  : 'bg-rose-50 border-rose-400 text-rose-950'
-              }`}>
-                <div className="font-serif font-bold text-sm flex items-center justify-between">
-                  <span>{stoolColorGuide[selectedStoolNumber].name}</span>
-                  <span className="font-mono">
-                    {stoolColorGuide[selectedStoolNumber].isNormal ? '✅ 正常便便' : '🚨 異常！請立即就診'}
-                  </span>
-                </div>
-                <p className="leading-relaxed text-[11px]">
-                  {stoolColorGuide[selectedStoolNumber].description}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 6. Solid Food Allergen Tracker Section */}
-        {(activeTab === 'all' || activeTab === 'allergen') && (
-          <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs space-y-4 md:col-span-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-                  <Utensils className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-bold text-base text-[#2A2723]">
-                    4-12 個月副食品食材過敏測試檢核清單
-                  </h3>
-                  <p className="text-[11px] text-[#8C8475] font-sans">
-                    每次引入新食材連續觀察 3 天，記錄是否有紅疹、腹瀉、嘔吐或過敏反應
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {allergens.map((item, index) => (
-                <div
-                  key={item.name}
-                  onClick={() => toggleAllergenTested(index)}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    item.tested
-                      ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900'
-                      : 'bg-white border-[#EBE7DF] hover:border-[#8C8475]'
-                  }`}
-                >
-                  <div>
-                    <div className="font-serif font-bold text-xs sm:text-sm text-[#2A2723]">
-                      {item.name}
-                    </div>
-                    <div className="text-[10px] text-[#8C8475] font-sans mt-0.5">
-                      {item.category} • {item.riskLevel === 'high' ? '高敏食材' : item.riskLevel === 'medium' ? '中度過敏' : '低敏初期'}
-                    </div>
-                  </div>
-
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                      item.tested ? 'bg-emerald-700 text-white' : 'bg-[#EBE7DF] text-transparent'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 7. Diaper Bag & Outing Checklist */}
-        {(activeTab === 'all' || activeTab === 'outing') && (
-          <div className="bg-[#F9F6F0] rounded-[32px] border border-[#D9D1C2] p-6 shadow-xs space-y-4 md:col-span-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-                  <Luggage className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-bold text-base text-[#2A2723]">
-                    外出媽媽包與看診待產必備互動檢核清單
-                  </h3>
-                  <p className="text-[11px] text-[#8C8475] font-sans">
-                    帶寶寶出門不再手忙腳亂，點擊即可勾選完成項目
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={resetOutingChecklist}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#EBE7DF] text-[#6B6457] hover:bg-[#D9D1C2] text-xs font-medium transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>重設勾選</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {outingChecklist.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => toggleOutingItem(item.id)}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-start justify-between space-x-3 ${
-                    item.checked
-                      ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
-                      : 'bg-white border-[#EBE7DF] hover:border-[#8C8475]'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EBE7DF] text-[#6B6457] font-mono">
-                        {item.category}
-                      </span>
-                    </div>
-                    <div className={`font-serif font-bold text-xs sm:text-sm text-[#2A2723] ${
-                      item.checked ? 'line-through opacity-70' : ''
-                    }`}>
-                      {item.name}
-                    </div>
-                    <div className="text-[10px] text-[#8C8475] font-sans">
-                      {item.description}
-                    </div>
-                  </div>
-
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                      item.checked ? 'bg-emerald-700 text-white' : 'bg-[#EBE7DF] text-transparent'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 

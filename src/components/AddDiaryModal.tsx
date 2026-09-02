@@ -1,521 +1,432 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  X,
-  Plus,
-  Baby,
-  Moon,
-  Sparkles,
+import { 
+  BookHeart, 
+  Smile, 
+  Award, 
+  Milk, 
+  Moon, 
+  Baby, 
+  Thermometer, 
+  Image as ImageIcon,
+  Plus, 
+  Trash2,
   Droplets,
-  Layers,
-  Thermometer,
-  Pill,
-  Clock,
-  Smile,
+  Activity
 } from 'lucide-react';
-import type { DiaryEntry, DiaryType } from '../types';
+import { BabyProfile, DiaryCategory, DiaryEntry, BabyMood } from '../types';
 
 interface AddDiaryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (entry: Partial<DiaryEntry>) => void;
-  editingEntry?: DiaryEntry | null;
-  currentMemberName: string;
+  babyProfile: BabyProfile;
+  initialCategory?: DiaryCategory;
+  onSave: (entry: DiaryEntry) => void;
 }
 
 export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
   isOpen,
   onClose,
+  babyProfile,
+  initialCategory = 'daily',
   onSave,
-  editingEntry,
-  currentMemberName,
 }) => {
-  const [type, setType] = useState<DiaryType>(editingEntry?.type || 'feed_bottle');
-  const [timestamp, setTimestamp] = useState(
-    editingEntry ? editingEntry.timestamp.slice(0, 16) : new Date().toISOString().slice(0, 16)
-  );
-  const [title, setTitle] = useState(editingEntry?.title || '');
-  const [note, setNote] = useState(editingEntry?.note || '');
-  const [amountMl, setAmountMl] = useState<number | ''>(editingEntry?.amountMl || 120);
-  const [durationMinutes, setDurationMinutes] = useState<number | ''>(
-    editingEntry?.durationMinutes || 60
-  );
-  const [temperatureCelsius, setTemperatureCelsius] = useState<number | ''>(
-    editingEntry?.temperatureCelsius || 36.8
-  );
-  const [diaperWetness, setDiaperWetness] = useState<string>(editingEntry?.diaperWetness || '適中正常');
-  const [diaperColor, setDiaperColor] = useState(editingEntry?.diaperColor || '金黃色 (正常)');
-  const [diaperStoolTexture, setDiaperStoolTexture] = useState<string>(
-    editingEntry?.diaperStoolTexture || '糊狀軟便'
-  );
-  const [mood, setMood] = useState<DiaryEntry['mood']>(editingEntry?.mood || 'happy');
-  const [loggedBy, setLoggedBy] = useState(
-    editingEntry?.loggedBy || currentMemberName || '媽媽'
-  );
+  const todayStr = new Date().toISOString().split('T')[0];
+  const nowTimeStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-  React.useEffect(() => {
-    if (isOpen) {
-      setType(editingEntry?.type || 'feed_bottle');
-      setTimestamp(editingEntry ? editingEntry.timestamp.slice(0, 16) : new Date().toISOString().slice(0, 16));
-      setTitle(editingEntry?.title || '');
-      setNote(editingEntry?.note || '');
-      setAmountMl(editingEntry?.amountMl || 120);
-      setDurationMinutes(editingEntry?.durationMinutes || 60);
-      setTemperatureCelsius(editingEntry?.temperatureCelsius || 36.8);
-      setDiaperWetness(editingEntry?.diaperWetness || '適中正常');
-      setDiaperColor(editingEntry?.diaperColor || '金黃色 (正常)');
-      setDiaperStoolTexture(editingEntry?.diaperStoolTexture || '糊狀軟便');
-      setMood(editingEntry?.mood || 'happy');
-      setLoggedBy(editingEntry?.loggedBy || currentMemberName || '媽媽');
-    }
-  }, [isOpen, editingEntry, currentMemberName]);
+  const [date, setDate] = useState(todayStr);
+  const [time, setTime] = useState(nowTimeStr);
+  const [category, setCategory] = useState<DiaryCategory>(initialCategory);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [mood, setMood] = useState<BabyMood>('happy');
+  const [milestoneTag, setMilestoneTag] = useState('');
+  const [author, setAuthor] = useState('媽媽');
+
+  // Intake Routine metrics fields
+  const [feedingType, setFeedingType] = useState<'breast' | 'formula' | 'solid' | 'water'>('formula');
+  const [feedingAmountMl, setFeedingAmountMl] = useState('');
+  const [feedingDurationMins, setFeedingDurationMins] = useState('');
+  const [waterAmountMl, setWaterAmountMl] = useState('');
+  const [solidFoodDetails, setSolidFoodDetails] = useState('');
+  
+  // Output Routine metrics fields
+  const [diaperType, setDiaperType] = useState<'wet' | 'dirty' | 'both' | 'clean'>('wet');
+  const [diaperWetnessLevel, setDiaperWetnessLevel] = useState<'light' | 'medium' | 'heavy' | 'measured'>('medium');
+  const [urineAmountMl, setUrineAmountMl] = useState('');
+  const [stoolConsistency, setStoolConsistency] = useState<'soft' | 'watery' | 'loose' | 'formed' | 'hard'>('soft');
+  const [stoolColor, setStoolColor] = useState('yellow');
+  const [vomitSeverity, setVomitSeverity] = useState<'none' | 'spit_up' | 'moderate' | 'projectile'>('none');
+  const [vomitMl, setVomitMl] = useState('');
+
+  // Routine general
+  const [sleepHours, setSleepHours] = useState('');
+  const [sleepType, setSleepType] = useState<'nap' | 'night'>('night');
+  const [temperatureC, setTemperatureC] = useState('');
+  const [medicationTaken, setMedicationTaken] = useState('');
+
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [photosList, setPhotosList] = useState<string[]>([]);
 
   if (!isOpen) return null;
 
+  const moodsList: { id: BabyMood; emoji: string; label: string }[] = [
+    { id: 'happy', emoji: '😊', label: '開心' },
+    { id: 'playful', emoji: '🧸', label: '活潑' },
+    { id: 'calm', emoji: '🌿', label: '安穩' },
+    { id: 'sleepy', emoji: '😴', label: '愛睏' },
+    { id: 'fussy', emoji: '🥺', label: '哭鬧' },
+    { id: 'curious', emoji: '🐣', label: '好奇' },
+  ];
+
+  const milestonePresets = [
+    '第一次自己翻身',
+    '第一次冒出乳牙',
+    '第一次笑出聲音',
+    '第一次嘗試副食品',
+    '睡過夜連續 6 小時',
+    '第一次抓握玩具',
+    '會發出「爸、媽」音',
+  ];
+
+  const handleAddPhoto = () => {
+    if (photoUrl.trim()) {
+      setPhotosList([...photosList, photoUrl.trim()]);
+      setPhotoUrl('');
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setPhotosList(photosList.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalTitle = title.trim() || (
+      category === 'feeding' ? `喝奶 ${feedingAmountMl ? `${feedingAmountMl}ml` : ''}` :
+      category === 'diaper' ? `換尿布 (${diaperType === 'wet' ? '純尿' : diaperType === 'dirty' ? '大便' : '尿+便'})` :
+      category === 'io' ? 'Total I/O 水分進出紀錄' :
+      category === 'sleep' ? `小睡/睡眠 ${sleepHours ? `${sleepHours}小時` : ''}` :
+      '寶寶成長動態'
+    );
+
+    const metricsObj: any = {};
+    if (feedingAmountMl) metricsObj.feedingAmountMl = parseFloat(feedingAmountMl);
+    if (feedingDurationMins) metricsObj.feedingDurationMins = parseFloat(feedingDurationMins);
+    if (waterAmountMl) metricsObj.waterAmountMl = parseFloat(waterAmountMl);
+    if (feedingType) metricsObj.feedingType = feedingType;
+    if (solidFoodDetails.trim()) metricsObj.solidFoodDetails = solidFoodDetails.trim();
     
-    let defaultAutoTitle = title;
-    if (!defaultAutoTitle) {
-      if (type === 'feed_bottle') defaultAutoTitle = `瓶餵 ${amountMl || 120}ml`;
-      else if (type === 'feed_breast') defaultAutoTitle = `親餵 ${durationMinutes || 20}分鐘`;
-      else if (type === 'feed_solid') defaultAutoTitle = '副食品點心餐';
-      else if (type === 'diaper_wet') defaultAutoTitle = `換濕尿布 (${diaperWetness})`;
-      else if (type === 'diaper_dirty') defaultAutoTitle = `更換便便尿布 (${diaperColor.split(' ')[0]})`;
-      else if (type === 'diaper_both') defaultAutoTitle = `尿布又濕又便 (${diaperColor.split(' ')[0]})`;
-      else if (type === 'sleep') defaultAutoTitle = `小睡 ${durationMinutes || 60}分鐘`;
-      else if (type === 'temperature') defaultAutoTitle = `體溫量測 ${temperatureCelsius || 36.8}°C`;
-      else defaultAutoTitle = '日常照護紀錄';
+    if (category === 'diaper' || category === 'io') {
+      metricsObj.diaperType = diaperType;
+      metricsObj.diaperWetnessLevel = diaperWetnessLevel;
+      if (urineAmountMl) metricsObj.urineAmountMl = parseFloat(urineAmountMl);
+      metricsObj.stoolConsistency = stoolConsistency;
+      metricsObj.stoolColor = stoolColor;
+      if (vomitSeverity !== 'none') {
+        metricsObj.vomitSeverity = vomitSeverity;
+        if (vomitMl) metricsObj.vomitMl = parseFloat(vomitMl);
+      }
     }
 
-    const payload: Partial<DiaryEntry> = {
-      type,
-      timestamp: new Date(timestamp).toISOString(),
-      title: defaultAutoTitle,
-      note: note.trim(),
-      amountMl: type === 'feed_bottle' ? Number(amountMl) : undefined,
-      durationMinutes:
-        type === 'sleep' || type === 'feed_breast' || type === 'tummy_time'
-          ? Number(durationMinutes)
-          : undefined,
-      temperatureCelsius: type === 'temperature' ? Number(temperatureCelsius) : undefined,
-      diaperWetness: type === 'diaper_wet' || type === 'diaper_both' ? diaperWetness : undefined,
-      diaperColor: type === 'diaper_dirty' || type === 'diaper_both' ? diaperColor : undefined,
-      diaperStoolTexture: type === 'diaper_dirty' || type === 'diaper_both' ? diaperStoolTexture : undefined,
+    if (sleepHours) metricsObj.sleepHours = parseFloat(sleepHours);
+    if (sleepType) metricsObj.sleepType = sleepType;
+    if (temperatureC) metricsObj.temperatureC = parseFloat(temperatureC);
+    if (medicationTaken.trim()) metricsObj.medicationTaken = medicationTaken.trim();
+
+    const newEntry: DiaryEntry = {
+      id: `diary_${Date.now()}`,
+      date,
+      time,
+      category,
+      title: finalTitle,
+      content: content.trim() || '日常照護記錄',
       mood,
-      loggedBy: loggedBy.trim() || '照護者',
+      milestoneTag: milestoneTag.trim() || undefined,
+      photos: photosList.length > 0 ? photosList : undefined,
+      author: author.trim() || undefined,
+      metrics: Object.keys(metricsObj).length > 0 ? metricsObj : undefined,
     };
 
-    onSave(payload);
+    onSave(newEntry);
     onClose();
   };
 
-  const typeOptions: { id: DiaryType; label: string; icon: string }[] = [
-    { id: 'feed_bottle', label: '瓶餵 (奶/水)', icon: '🍼' },
-    { id: 'feed_breast', label: '母乳親餵', icon: '🤱' },
-    { id: 'feed_solid', label: '副食品泥', icon: '🥣' },
-    { id: 'diaper_wet', label: '尿布濕濕 (尿尿)', icon: '💧' },
-    { id: 'diaper_dirty', label: '尿布便便 (大便)', icon: '💩' },
-    { id: 'diaper_both', label: '又濕又便 (雙重)', icon: '🧻' },
-    { id: 'sleep', label: '睡眠小憩', icon: '🌙' },
-    { id: 'temperature', label: '量測體溫', icon: '🌡️' },
-    { id: 'medication', label: '服藥/保健品', icon: '💊' },
-    { id: 'tummy_time', label: '趴撐練習', icon: '👶' },
-  ];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 20 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-        className="bg-[#F9F6F0] w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#D9D1C2] shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto"
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-              <Baby className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2A2723]/60 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-[#F9F6F0] rounded-[36px] p-6 sm:p-8 max-w-xl w-full border border-[#D9D1C2] shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#EBE7DF]">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
+              <BookHeart className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
-              <h3 className="font-serif font-bold text-lg text-[#2A2723]">
-                {editingEntry ? '編輯日常照護日記' : '新增寶寶日常打卡紀錄'}
+              <h3 className="text-lg sm:text-xl font-serif font-bold text-[#2A2723]">
+                記錄寶寶成長日常與日記
               </h3>
               <p className="text-xs text-[#8C8475] font-sans">
-                快速記錄餵奶、睡眠、便尿與體溫
+                {babyProfile.name} 的專屬成長點滴
               </p>
             </div>
           </div>
-
           <button
             onClick={onClose}
-            className="p-2 text-[#8C8475] hover:text-[#2A2723] rounded-xl hover:bg-[#EBE7DF] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#F2EDE4] text-[#4A453E] hover:bg-[#E6DFD1] flex items-center justify-center font-bold"
           >
-            <X className="w-5 h-5" />
+            ✕
           </button>
-        </div>
-
-        {/* Category Pick Grid */}
-        <div className="space-y-1.5">
-          <label className="text-xs text-[#6B6457] font-medium font-sans">選擇紀錄分類</label>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            {typeOptions.map((opt) => {
-              const isSelected = type === opt.id;
-              let customStyle = 'bg-white border border-[#D9D1C2] text-[#2A2723] hover:bg-[#EBE7DF]';
-              
-              if (isSelected) {
-                if (opt.id === 'diaper_wet') {
-                  customStyle = 'bg-sky-600 text-white font-bold shadow-xs border-transparent';
-                } else if (opt.id === 'diaper_dirty') {
-                  customStyle = 'bg-amber-800 text-white font-bold shadow-xs border-transparent';
-                } else if (opt.id === 'diaper_both') {
-                  customStyle = 'bg-teal-700 text-white font-bold shadow-xs border-transparent';
-                } else {
-                  customStyle = 'bg-[#2A2723] text-[#F9F6F0] font-semibold shadow-xs border-transparent';
-                }
-              } else {
-                if (opt.id === 'diaper_wet') {
-                  customStyle = 'bg-sky-50/60 border border-sky-200 text-sky-900 hover:bg-sky-100';
-                } else if (opt.id === 'diaper_dirty') {
-                  customStyle = 'bg-amber-50/60 border border-amber-200 text-amber-900 hover:bg-amber-100';
-                } else if (opt.id === 'diaper_both') {
-                  customStyle = 'bg-teal-50/60 border border-teal-200 text-teal-900 hover:bg-teal-100';
-                }
-              }
-
-              return (
-                <button
-                  type="button"
-                  key={opt.id}
-                  onClick={() => setType(opt.id)}
-                  className={`p-2 rounded-xl text-xs font-sans text-center transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${customStyle}`}
-                >
-                  <span className="text-base">{opt.icon}</span>
-                  <span className="truncate font-medium">{opt.label}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 font-sans text-xs">
           
+          {/* Category Tabs */}
+          <div>
+            <label className="text-[#8C8475] block mb-1.5 font-medium">日記類型</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { id: 'daily', label: '📔 生活', icon: BookHeart },
+                { id: 'feeding', label: '🍼 飲食', icon: Milk },
+                { id: 'diaper', label: '🧷 尿布/排泄', icon: Droplets },
+                { id: 'sleep', label: '💤 睡眠', icon: Moon },
+                { id: 'milestone', label: '🌟 里程碑', icon: Award },
+                { id: 'temperature', label: '🌡️ 體溫', icon: Thermometer },
+                { id: 'io', label: '💧 Total I/O', icon: Activity },
+                { id: 'medical', label: '🏥 用藥就診', icon: Plus },
+              ].map((item) => {
+                const Icon = item.icon;
+                const isSel = category === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setCategory(item.id as DiaryCategory)}
+                    className={`py-2 px-1 rounded-xl text-center flex flex-col items-center gap-1 transition-all ${
+                      isSel
+                        ? 'bg-[#2A2723] text-white shadow-xs'
+                        : 'bg-white text-[#4A453E] border border-[#EBE7DF] hover:bg-[#F2EDE4]'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-medium">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Date & Time */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[#6B6457] font-medium mb-1">記錄時間</label>
+              <label className="text-[#8C8475] block mb-1">記錄日期</label>
               <input
-                type="datetime-local"
-                value={timestamp}
-                onChange={(e) => setTimestamp(e.target.value)}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
                 required
-                className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs font-mono text-[#2A2723] focus:outline-none"
               />
             </div>
-
             <div>
-              <label className="block text-[#6B6457] font-medium mb-1">照護者稱謂</label>
+              <label className="text-[#8C8475] block mb-1">記錄時間</label>
               <input
-                type="text"
-                value={loggedBy}
-                onChange={(e) => setLoggedBy(e.target.value)}
-                placeholder="例如: 媽媽 / 爸爸 / 月嫂"
-                className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2A2723] focus:outline-none"
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                required
               />
             </div>
           </div>
 
-          {/* Conditional Field Inputs depending on category */}
-          {type === 'feed_bottle' && (
-            <div className="p-4 bg-white rounded-2xl border border-[#EBE7DF] space-y-2">
-              <label className="text-xs font-semibold text-[#2A2723] block">餵奶量 (ml)</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="number"
-                  step="10"
-                  value={amountMl}
-                  onChange={(e) => setAmountMl(Number(e.target.value))}
-                  className="flex-1 bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723]"
-                  placeholder="120"
-                />
-                <span className="text-xs text-[#8C8475] font-mono">ml</span>
-              </div>
-              <div className="flex gap-1.5 pt-1">
-                {[60, 90, 120, 150, 180, 210].map((ml) => (
-                  <button
-                    type="button"
-                    key={ml}
-                    onClick={() => setAmountMl(ml)}
-                    className="px-2 py-1 rounded-lg bg-[#EBE7DF] hover:bg-[#D9D1C2] text-[11px] font-mono cursor-pointer"
+          {/* SPECIFIC FIELDS: FEEDING / INTAKE */}
+          {(category === 'feeding' || category === 'io') && (
+            <div className="p-3.5 bg-[#F2EDE4] rounded-2xl space-y-3 border border-[#D9D1C2]">
+              <span className="font-bold text-[#2A2723] flex items-center gap-1.5">
+                <Milk className="w-4 h-4 text-sky-700" />
+                <span>Intake 攝入量記錄 (餵奶 / 副食品 / 水)</span>
+              </span>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[#6B6457] block mb-1">飲食方式</label>
+                  <select
+                    value={feedingType}
+                    onChange={(e) => setFeedingType(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
                   >
-                    {ml}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {(type === 'sleep' || type === 'feed_breast' || type === 'tummy_time') && (
-            <div className="p-4 bg-white rounded-2xl border border-[#EBE7DF] space-y-2">
-              <label className="text-xs font-semibold text-[#2A2723] block">
-                {type === 'sleep' ? '睡眠時長 (分鐘)' : type === 'feed_breast' ? '親餵時長 (分鐘)' : '趴撐練習時長 (分鐘)'}
-              </label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="number"
-                  step="5"
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                  className="flex-1 bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723]"
-                  placeholder="60"
-                />
-                <span className="text-xs text-[#8C8475] font-mono">分鐘</span>
-              </div>
-              <div className="flex gap-1.5 pt-1">
-                {[15, 30, 45, 60, 90, 120].map((min) => (
-                  <button
-                    type="button"
-                    key={min}
-                    onClick={() => setDurationMinutes(min)}
-                    className="px-2 py-1 rounded-lg bg-[#EBE7DF] hover:bg-[#D9D1C2] text-[11px] font-mono cursor-pointer"
-                  >
-                    {min}分
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {type === 'temperature' && (
-            <div className="p-4 bg-white rounded-2xl border border-[#EBE7DF] space-y-2">
-              <label className="text-xs font-semibold text-[#2A2723] block">量測體溫 (°C)</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="number"
-                  step="0.1"
-                  value={temperatureCelsius}
-                  onChange={(e) => setTemperatureCelsius(parseFloat(e.target.value))}
-                  className="flex-1 bg-[#F9F6F0] border border-[#D9D1C2] rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#2A2723]"
-                  placeholder="36.8"
-                />
-                <span className="text-xs text-[#8C8475] font-mono">°C</span>
-              </div>
-              <p className="text-[11px] text-[#8C8475]">
-                {Number(temperatureCelsius) >= 38.0
-                  ? '⚠️ 提示：體溫達 38.0°C 以上屬發燒，請持續觀察並評估就醫。'
-                  : '一般正常嬰幼兒耳溫/肛溫範圍約 36.5°C ~ 37.5°C。'}
-              </p>
-            </div>
-          )}
-
-          {/* Diaper Wet Specific Inputs */}
-          {type === 'diaper_wet' && (
-            <div className="p-4 bg-sky-50/70 rounded-2xl border border-sky-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-sky-900 flex items-center gap-1.5">
-                  <span>💧 尿布濕度 / 尿量評估</span>
-                </label>
-                <span className="text-[10px] text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full font-mono">
-                  尿尿打卡
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  '微濕 (剛尿/少量)',
-                  '適中正常 (及時更換)',
-                  '沈重一大包 (換新乾爽)',
-                  '側漏滲出 (需調版型)',
-                ].map((w) => (
-                  <button
-                    type="button"
-                    key={w}
-                    onClick={() => setDiaperWetness(w)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-colors ${
-                      diaperWetness === w
-                        ? 'bg-sky-600 text-white shadow-2xs font-semibold'
-                        : 'bg-white text-sky-900 border border-sky-200 hover:bg-sky-100'
-                    }`}
-                  >
-                    {w}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-sky-700 leading-relaxed">
-                💡 兒科衛教：寶寶一天更換 6 片以上適量濕尿布，代表奶量充足且排泄水分正常，勤換尿布可預防紅屁屁。
-              </p>
-            </div>
-          )}
-
-          {/* Diaper Dirty Specific Inputs */}
-          {type === 'diaper_dirty' && (
-            <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                  <span>💩 便便顏色 (依國健署大便卡比對)</span>
-                </label>
-                <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-mono">
-                  大便打卡
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  '金黃色 (正常 7-9號)',
-                  '黃綠色 (正常 7-9號)',
-                  '墨綠色 (正常 7-9號)',
-                  '深褐色 (正常)',
-                  '灰白/淡黃 (警訊 1-6號 ⚠️)',
-                  '鮮紅/血絲 (警訊 ⚠️)',
-                  '黑色柏油狀 (需注意 ⚠️)',
-                ].map((c) => (
-                  <button
-                    type="button"
-                    key={c}
-                    onClick={() => setDiaperColor(c)}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-colors ${
-                      diaperColor === c
-                        ? c.includes('警訊')
-                          ? 'bg-rose-700 text-white shadow-2xs font-bold'
-                          : 'bg-amber-800 text-white shadow-2xs font-bold'
-                        : c.includes('警訊')
-                        ? 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
-                        : 'bg-white text-amber-900 border border-amber-200 hover:bg-amber-100'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-
-              {/* Stool Texture */}
-              <div className="pt-2 border-t border-amber-200/60 space-y-1.5">
-                <label className="text-xs font-semibold text-amber-900 block">質地形態</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {['糊狀軟便 (良好)', '帶奶瓣顆粒 (正常消化)', '水狀稀便 (觀察防脫水)', '黏液軟便', '偏硬羊屎粒 (可能缺水)'].map(
-                    (t) => (
-                      <button
-                        type="button"
-                        key={t}
-                        onClick={() => setDiaperStoolTexture(t)}
-                        className={`px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-colors ${
-                          diaperStoolTexture === t
-                            ? 'bg-amber-900 text-white font-medium shadow-2xs'
-                            : 'bg-white text-amber-900 border border-amber-200 hover:bg-amber-100'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    )
-                  )}
+                    <option value="formula">配方奶 (瓶餵)</option>
+                    <option value="breast">母乳 (親餵/瓶餵)</option>
+                    <option value="solid">副食品 / 粥品</option>
+                    <option value="water">水 / 電解質水</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[#6B6457] block mb-1">攝入份量 (ml)</label>
+                  <input
+                    type="number"
+                    placeholder="如: 120"
+                    value={feedingAmountMl}
+                    onChange={(e) => setFeedingAmountMl(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono"
+                  />
                 </div>
               </div>
 
-              <p className="text-[11px] text-amber-800 leading-relaxed">
-                💡 兒科衛教：若寶寶大便呈現 1~6 號灰白淡黃色，可能為膽道閉鎖警訊，請儘速帶便便尿布前往兒科就診。
-              </p>
+              {feedingType === 'breast' && (
+                <div>
+                  <label className="text-[#6B6457] block mb-1">親餵時間 (分鐘)</label>
+                  <input
+                    type="number"
+                    placeholder="如: 20 (若親餵未量ml，將依分鐘估算)"
+                    value={feedingDurationMins}
+                    onChange={(e) => setFeedingDurationMins(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono"
+                  />
+                </div>
+              )}
             </div>
           )}
 
-          {/* Diaper Both (Wet + Dirty) */}
-          {type === 'diaper_both' && (
-            <div className="p-4 bg-teal-50/70 rounded-2xl border border-teal-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
-                  <span>🧻 雙重更換 (尿布又濕又便)</span>
-                </label>
-                <span className="text-[10px] text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full font-mono">
-                  尿尿 + 大便
-                </span>
-              </div>
+          {/* SPECIFIC FIELDS: DIAPER / OUTPUT */}
+          {(category === 'diaper' || category === 'io') && (
+            <div className="p-3.5 bg-[#F2EDE4] rounded-2xl space-y-3 border border-[#D9D1C2]">
+              <span className="font-bold text-[#2A2723] flex items-center gap-1.5">
+                <Droplets className="w-4 h-4 text-amber-700" />
+                <span>Output 排泄量記錄 (尿布 / 尿量 / 大便 / 溢奶)</span>
+              </span>
 
-              {/* Wetness */}
-              <div className="space-y-1">
-                <span className="text-[11px] font-semibold text-teal-900">💧 尿量程度:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {['微濕', '適中正常', '沈重一大包'].map((w) => (
-                    <button
-                      type="button"
-                      key={w}
-                      onClick={() => setDiaperWetness(w)}
-                      className={`px-2.5 py-1 rounded-lg text-xs cursor-pointer ${
-                        diaperWetness === w
-                          ? 'bg-teal-700 text-white font-medium'
-                          : 'bg-white text-teal-900 border border-teal-200'
-                      }`}
-                    >
-                      {w}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[#6B6457] block mb-1">排泄性質</label>
+                  <select
+                    value={diaperType}
+                    onChange={(e) => setDiaperType(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                  >
+                    <option value="wet">純排尿 (濕尿布)</option>
+                    <option value="dirty">排便 (大便)</option>
+                    <option value="both">尿尿 + 排便</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[#6B6457] block mb-1">濕度/尿量評估</label>
+                  <select
+                    value={diaperWetnessLevel}
+                    onChange={(e) => setDiaperWetnessLevel(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                  >
+                    <option value="light">輕微濕 (~30ml)</option>
+                    <option value="medium">中度濕 (~60ml)</option>
+                    <option value="heavy">沈重濕重尿布 (~100ml)</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Stool Color */}
-              <div className="space-y-1 pt-1.5 border-t border-teal-200/60">
-                <span className="text-[11px] font-semibold text-teal-900">💩 便便顏色與質地:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {['金黃色 (正常)', '黃綠色 (正常)', '墨綠色 (正常)', '糊狀軟便', '水狀稀便', '偏硬羊便', '灰白/警訊 ⚠️'].map(
-                    (c) => (
-                      <button
-                        type="button"
-                        key={c}
-                        onClick={() => setDiaperColor(c)}
-                        className={`px-2.5 py-1 rounded-lg text-xs cursor-pointer ${
-                          diaperColor === c
-                            ? 'bg-teal-900 text-white font-medium'
-                            : 'bg-white text-teal-900 border border-teal-200'
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    )
-                  )}
+              {/* Stool consistency & vomit */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[#6B6457] block mb-1">大便性狀 (Bristol)</label>
+                  <select
+                    value={stoolConsistency}
+                    onChange={(e) => setStoolConsistency(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                  >
+                    <option value="soft">正常軟便 / 糊狀便</option>
+                    <option value="watery">水便 (水瀉)</option>
+                    <option value="loose">稀便</option>
+                    <option value="formed">成形軟便</option>
+                    <option value="hard">硬便 / 羊便便</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[#6B6457] block mb-1">溢奶 / 嘔吐情形</label>
+                  <select
+                    value={vomitSeverity}
+                    onChange={(e) => setVomitSeverity(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                  >
+                    <option value="none">無溢奶</option>
+                    <option value="spit_up">微量溢奶 (~15ml)</option>
+                    <option value="moderate">中度吐奶 (~40ml)</option>
+                    <option value="projectile">噴射狀嘔吐 (~80ml)</option>
+                  </select>
                 </div>
               </div>
             </div>
           )}
 
+          {/* Title & Content */}
           <div>
-            <label className="block text-[#6B6457] font-medium mb-1">標題摘要 (選填)</label>
+            <label className="text-[#8C8475] block mb-1">標題 / 摘要</label>
             <input
               type="text"
+              placeholder="例：喝了 150ml 奶後安穩睡著、第一次長牙"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="留空將依項目自動生成"
-              className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2A2723] focus:outline-none"
+              className="w-full px-3 py-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
             />
           </div>
 
           <div>
-            <label className="block text-[#6B6457] font-medium mb-1">備註心得 (選填)</label>
+            <label className="text-[#8C8475] block mb-1">詳細心得與紀錄</label>
             <textarea
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="例如: 喝奶順利拍出大嗝、心情平穩安睡..."
-              className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2A2723] focus:outline-none"
+              rows={3}
+              placeholder="記錄寶寶的表情、喝奶作息與互動心得..."
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full p-3 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
             />
           </div>
 
-          {/* Submit Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#EBE7DF]">
+          {/* Mood & Author */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[#8C8475] block mb-1">寶寶當下心情</label>
+              <select
+                value={mood}
+                onChange={(e) => setMood(e.target.value as BabyMood)}
+                className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+              >
+                {moodsList.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.emoji} {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[#8C8475] block mb-1">記錄照護者</label>
+              <input
+                type="text"
+                placeholder="媽媽 / 爸爸 / 褓母"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+              />
+            </div>
+          </div>
+
+          {/* Submit Buttons */}
+          <div className="pt-3 border-t border-[#EBE7DF] flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-full border border-[#D9D1C2] text-xs text-[#6B6457] hover:bg-[#EBE7DF] cursor-pointer"
+              className="px-5 py-2.5 rounded-full border border-[#D1CEC4] text-[#4A453E] hover:bg-[#E6DFD1]"
             >
               取消
             </button>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+            <button
               type="submit"
-              className="px-6 py-2 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-semibold hover:bg-[#4A453E] shadow-xs cursor-pointer"
+              className="px-6 py-2.5 rounded-full bg-[#2A2723] hover:bg-[#3D3833] text-white font-medium shadow-sm transition-all"
             >
-              {editingEntry ? '儲存變更' : '新增紀錄'}
-            </motion.button>
+              發佈並儲存日記
+            </button>
           </div>
 
         </form>
-      </motion.div>
+
+      </div>
     </div>
   );
 };

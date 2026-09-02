@@ -1,189 +1,72 @@
-import type { BabyProfile, GrowthRecord, DiaryEntry, MedicalVisit, StickyNote } from '../types';
-import { initialVaccineSchedule } from './vaccineScheduleData';
+import { AppDataStore, BabyProfile, GrowthRecord, VaccineRecord, DiaryEntry, MedicalVisit } from '../types';
+import { NATIONAL_VACCINE_SCHEDULE } from './vaccineScheduleData';
 
-export const defaultBabyProfile: BabyProfile = {
-  id: 'baby-default-1',
-  name: '李元寶',
-  nickname: '小元寶 (Leo)',
-  gender: 'male',
-  birthDate: '2026-03-15',
-  birthWeight: 3.35,
-  birthLength: 50.5,
-  birthHeadCirc: 34.5,
-  bloodType: 'O型 Rh+',
-  allergies: ['無已知過敏'],
-  emergencyContact: '爸爸 0912-345-678 / 媽媽 0923-456-789',
-  notes: '出生於台大婦幼醫院，目前純母乳搭配水解配方奶，作息規律。',
-  familyCode: 'BABY888',
+export const INITIAL_BABY_PROFILE: BabyProfile = {
+  id: 'baby_primary',
+  name: '寶寶',
+  nickname: '',
+  gender: 'female',
+  birthday: new Date().toISOString().split('T')[0],
+  birthTime: '',
+  birthWeight: 0,
+  birthLength: 0,
+  birthHeadCirc: 0,
+  gestationalWeeks: 40,
+  bloodType: 'O+',
+  pediatrician: '',
+  hospital: '',
+  medicalRecordNumber: '',
+  allergies: [],
+  emergencyContact: {
+    name: '',
+    relationship: '主要照護者',
+    phone: '',
+  },
+  avatarUrl: '',
+  themeColor: 'rose',
 };
 
-export const defaultGrowthRecords: GrowthRecord[] = [
-  {
-    id: 'g-1',
-    babyId: 'baby-default-1',
-    date: '2026-03-15',
-    ageMonths: 0,
-    ageDays: 0,
-    weight: 3.35,
-    length: 50.5,
-    headCirc: 34.5,
-    doctorNote: '出生基準發育良好，阿普伽評分 9/10。',
-    measuredBy: '台大婦幼產房',
-    createdAt: '2026-03-15T08:00:00.000Z',
-  },
-  {
-    id: 'g-2',
-    babyId: 'baby-default-1',
-    date: '2026-04-16',
-    ageMonths: 1,
-    ageDays: 32,
-    weight: 4.6,
-    length: 55.2,
-    headCirc: 37.5,
-    doctorNote: '滿月健檢：體重成長良好，肌肉張力正常。',
-    measuredBy: '台大小兒門診',
-    createdAt: '2026-04-16T10:00:00.000Z',
-  },
-  {
-    id: 'g-3',
-    babyId: 'baby-default-1',
-    date: '2026-05-18',
-    ageMonths: 2,
-    ageDays: 64,
-    weight: 5.75,
-    length: 59.0,
-    headCirc: 39.5,
-    doctorNote: '2個月健檢：已會微笑發出咿呀聲，追視靈活。',
-    measuredBy: '李小兒科門診',
-    createdAt: '2026-05-18T14:30:00.000Z',
-  },
-  {
-    id: 'g-4',
-    babyId: 'baby-default-1',
-    date: '2026-07-20',
-    ageMonths: 4,
-    ageDays: 127,
-    weight: 7.2,
-    length: 64.5,
-    headCirc: 42.0,
-    doctorNote: '4個月健檢：脖子有力已能穩固抬頭，可開始少量嘗試副食品米湯。',
-    measuredBy: '李小兒科門診',
-    createdAt: '2026-07-20T11:00:00.000Z',
-  },
-  {
-    id: 'g-5',
-    babyId: 'baby-default-1',
-    date: '2026-08-25',
-    ageMonths: 5,
-    ageDays: 163,
-    weight: 7.8,
-    length: 66.8,
-    headCirc: 43.1,
-    doctorNote: '家用測量，生長曲線落在 50-85 百分位區間，食慾極佳。',
-    measuredBy: '家中測量',
-    createdAt: '2026-08-25T09:00:00.000Z',
-  },
-];
+export const INITIAL_GROWTH_RECORDS: GrowthRecord[] = [];
 
-export const defaultDiaryEntries: DiaryEntry[] = [
-  {
-    id: 'd-1',
-    babyId: 'baby-default-1',
-    type: 'feed_bottle',
-    timestamp: '2026-09-01T08:30:00.000Z',
-    title: '早晨第一餐奶',
-    amountMl: 160,
-    note: '喝得很快，拍嗝順暢，精神很好。',
-    mood: 'happy',
-    loggedBy: '媽媽',
-    createdAt: '2026-09-01T08:45:00.000Z',
-  },
-  {
-    id: 'd-2',
-    babyId: 'baby-default-1',
-    type: 'diaper_both',
-    timestamp: '2026-09-01T09:15:00.000Z',
-    title: '換尿布 (便便+濕)',
-    diaperColor: '金黃色軟糊狀 (正常母乳便)',
-    mood: 'calm',
-    loggedBy: '爸爸',
-    createdAt: '2026-09-01T09:20:00.000Z',
-  },
-  {
-    id: 'd-3',
-    babyId: 'baby-default-1',
-    type: 'tummy_time',
-    timestamp: '2026-09-01T10:00:00.000Z',
-    title: '趴撐抬頭練習',
-    durationMinutes: 15,
-    note: '可以用手肘支撐胸口超過 10 秒，對黑白圖卡反應熱烈。',
-    mood: 'happy',
-    loggedBy: '媽媽',
-    createdAt: '2026-09-01T10:20:00.000Z',
-  },
-  {
-    id: 'd-4',
-    babyId: 'baby-default-1',
-    type: 'sleep',
-    timestamp: '2026-09-01T10:30:00.000Z',
-    title: '早上小睡',
-    durationMinutes: 90,
-    note: '聽白噪音海浪聲自行入睡。',
-    mood: 'sleepy',
-    loggedBy: '爸爸',
-    createdAt: '2026-09-01T12:00:00.000Z',
-  },
-  {
-    id: 'd-5',
-    babyId: 'baby-default-1',
-    type: 'feed_solid',
-    timestamp: '2026-09-01T12:30:00.000Z',
-    title: '副食品嘗鮮：南瓜泥',
-    amountMl: 30,
-    note: '吃了約 30ml，吞嚥順暢沒有吐出來，非常喜歡甜味。',
-    mood: 'happy',
-    loggedBy: '媽媽',
-    createdAt: '2026-09-01T12:50:00.000Z',
-  },
-];
+// Initialize vaccine records linked to national schedule without mock completion
+export function generateInitialVaccineRecords(bDate: Date): VaccineRecord[] {
+  return NATIONAL_VACCINE_SCHEDULE.map((item) => {
+    const scheduledTime = new Date(bDate.getTime() + item.targetAgeMonths * 30.4375 * 24 * 60 * 60 * 1000);
+    const scheduledDate = scheduledTime.toISOString().split('T')[0];
 
-export const defaultMedicalVisits: MedicalVisit[] = [
-  {
-    id: 'm-1',
-    babyId: 'baby-default-1',
-    date: '2026-07-20',
-    clinic: '李小兒科門診',
-    doctor: '李醫師',
-    reason: '4個月公費常規健康檢查與預防注射',
-    diagnosis: '發育良好，心肺聽診正常，髖關節活動度良好。',
-    temperature: 36.8,
-    weight: 7.2,
-    doctorAdvice: '可開始於餐間少量嘗試單一食材副食品，每次觀察3天。',
-    createdAt: '2026-07-20T11:30:00.000Z',
-  },
-];
+    return {
+      id: `vrec_${item.id}`,
+      scheduleId: item.id,
+      vaccineName: item.name,
+      doseNumber: item.doseNumber,
+      scheduledDate,
+      isCompleted: false,
+    };
+  });
+}
 
-export const defaultStickyNotes: StickyNote[] = [
-  {
-    id: 'note-1',
-    babyId: 'baby-default-1',
-    content: '冰箱第一層有已擠好的母乳 150ml (標籤 9/1 早上 07:30)，下午 4:00 溫奶給寶寶喝！',
-    author: '媽媽',
-    color: 'amber',
-    isPinned: true,
-    isResolved: false,
-    createdAt: '2026-09-01T08:00:00.000Z',
-  },
-  {
-    id: 'note-2',
-    babyId: 'baby-default-1',
-    content: '下週二 (9/8) 下午 14:00 記得帶健保卡去衛生所施打卡介苗與五合一！',
-    author: '爸爸',
-    color: 'emerald',
-    isPinned: false,
-    isResolved: false,
-    createdAt: '2026-09-01T09:00:00.000Z',
-  },
-];
+export const INITIAL_DIARY_ENTRIES: DiaryEntry[] = [];
 
-export { initialVaccineSchedule };
+export const INITIAL_MEDICAL_VISITS: MedicalVisit[] = [];
+
+export function getInitialAppData(): AppDataStore {
+  const birthDate = new Date();
+  return {
+    babyProfile: {
+      ...INITIAL_BABY_PROFILE,
+      birthday: birthDate.toISOString().split('T')[0],
+    },
+    growthRecords: INITIAL_GROWTH_RECORDS,
+    vaccineRecords: generateInitialVaccineRecords(birthDate),
+    diaryEntries: INITIAL_DIARY_ENTRIES,
+    medicalVisits: INITIAL_MEDICAL_VISITS,
+    syncInfo: {
+      syncCode: 'BABY-' + Math.floor(1000 + Math.random() * 9000),
+      lastSyncedAt: new Date().toISOString(),
+      version: 1,
+      isSyncing: false,
+      statusMessage: '雲端同步備份就緒',
+      deviceName: '主要照護者裝置',
+    },
+  };
+}

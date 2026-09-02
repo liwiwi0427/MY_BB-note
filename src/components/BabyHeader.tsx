@@ -1,243 +1,283 @@
 import React from 'react';
-import { motion } from 'motion/react';
-import {
-  Baby,
-  Edit3,
-  Calendar,
-  Scale,
-  Ruler,
-  Brain,
-  FileSpreadsheet,
-  StickyNote as StickyNoteIcon,
-  ShieldAlert,
-  FileJson,
+import { 
+  Baby, 
+  FileText, 
+  Weight, 
+  Ruler, 
+  Brain, 
+  Syringe, 
+  Edit3, 
+  Calendar, 
+  Heart,
+  Clock,
+  ShieldAlert
 } from 'lucide-react';
-import type { BabyProfile, GrowthRecord, VaccineRecord } from '../types';
-import { calculateAge } from '../utils/dateUtils';
-import { calculatePercentile } from '../data/whoGrowthData';
-import { useToast } from '../context/ToastContext';
+import { BabyProfile, GrowthRecord, VaccineRecord } from '../types';
+import { getBabyAgeDetails } from '../utils/storage';
+import { getPercentileInterpretation } from '../data/whoGrowthData';
 
 interface BabyHeaderProps {
-  baby: BabyProfile;
-  latestGrowthRecord?: GrowthRecord;
+  babyProfile: BabyProfile;
+  growthRecords: GrowthRecord[];
   vaccineRecords: VaccineRecord[];
-  onOpenEditProfile: () => void;
-  onOpenReportModal: () => void;
-  onOpenBackupModal?: () => void;
-  onNavigateToNotes?: () => void;
+  onEditProfile: () => void;
+  onOpenPediatricReport: () => void;
+  onOpenGrowthTracker: () => void;
+  onOpenVaccineTracker: () => void;
 }
 
 export const BabyHeader: React.FC<BabyHeaderProps> = ({
-  baby,
-  latestGrowthRecord,
+  babyProfile,
+  growthRecords,
   vaccineRecords,
-  onOpenEditProfile,
-  onOpenReportModal,
-  onOpenBackupModal,
-  onNavigateToNotes,
+  onEditProfile,
+  onOpenPediatricReport,
+  onOpenGrowthTracker,
+  onOpenVaccineTracker,
 }) => {
-  const age = calculateAge(baby.birthDate);
+  const ageDetails = getBabyAgeDetails(babyProfile.birthday);
 
-  const weight = latestGrowthRecord ? latestGrowthRecord.weight : baby.birthWeight;
-  const length = latestGrowthRecord ? latestGrowthRecord.length : baby.birthLength;
-  const headCirc = latestGrowthRecord ? latestGrowthRecord.headCirc : baby.birthHeadCirc;
+  // Latest growth record
+  const latestGrowth = growthRecords.length > 0 
+    ? [...growthRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+    : null;
 
-  const currentMonths = latestGrowthRecord ? latestGrowthRecord.ageMonths : age.months;
-  const pWeight = calculatePercentile(weight, currentMonths, 'weight', baby.gender);
-  const pLength = calculatePercentile(length, currentMonths, 'length', baby.gender);
-  const pHead = calculatePercentile(headCirc, currentMonths, 'headCirc', baby.gender);
+  // Next upcoming vaccine
+  const nowTime = new Date().getTime();
+  const upcomingVaccines = vaccineRecords
+    .filter((v) => !v.isCompleted)
+    .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+  
+  const nextVaccine = upcomingVaccines[0];
+  let daysUntilVaccine = 0;
+  if (nextVaccine) {
+    const diff = new Date(nextVaccine.scheduledDate).getTime() - nowTime;
+    daysUntilVaccine = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }
 
-  const completedVaccines = vaccineRecords.filter((v) => v.isCompleted).length;
-  const totalVaccines = vaccineRecords.length;
-  const nextPendingVaccine = vaccineRecords.find((v) => !v.isCompleted);
+  const weightInterp = latestGrowth?.percentileWeight !== undefined
+    ? getPercentileInterpretation(latestGrowth.percentileWeight)
+    : null;
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="bg-[#F9F6F0] rounded-[32px] sm:rounded-[36px] border border-[#D9D1C2] p-5 sm:p-7 shadow-xs relative overflow-hidden transition-all duration-200 hover:shadow-sm"
-    >
-      {/* Background Subtle Stamp */}
-      <div className="absolute right-6 -bottom-6 opacity-5 select-none pointer-events-none text-9xl font-serif hidden sm:block">
-        👶
+    <section className="bg-white border border-[#EBE7DF] rounded-[36px] p-6 sm:p-8 shadow-xs relative overflow-hidden mb-8">
+      {/* Editorial Decorative Watermark */}
+      <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none select-none font-serif text-9xl">
+        Baby
       </div>
 
-      <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-        
-        {/* Baby Info Main Block */}
-        <div className="flex items-start sm:items-center space-x-4 sm:space-x-5">
-          <motion.div
-            whileHover={{ scale: 1.05, rotate: 2 }}
-            className="relative shrink-0 cursor-pointer"
-            onClick={onOpenEditProfile}
-            title="點擊編輯寶寶個人資料"
-          >
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-white border-2 border-[#EBE7DF] shadow-sm flex items-center justify-center text-3xl sm:text-4xl select-none">
-              {baby.gender === 'male' ? '👶🏻' : '👶🏼'}
-            </div>
-            <span
-              className={`absolute -bottom-1 -right-1 text-[11px] font-sans font-bold px-2 py-0.5 rounded-full border shadow-xs ${
-                baby.gender === 'male'
-                  ? 'bg-sky-100 text-sky-900 border-sky-300'
-                  : 'bg-rose-100 text-rose-900 border-rose-300'
-              }`}
-            >
-              {baby.gender === 'male' ? '男寶' : '女寶'}
-            </span>
-          </motion.div>
-
-          <div>
-            <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-serif font-bold text-[#2A2723] tracking-tight">
-                {baby.name}
-              </h1>
-              {baby.nickname && (
-                <span className="text-xs sm:text-sm font-sans font-medium px-2.5 py-0.5 rounded-full bg-amber-100/80 text-amber-900 border border-amber-300/80 shadow-2xs">
-                  {baby.nickname}
-                </span>
-              )}
-              {baby.bloodType && (
-                <span className="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-white text-[#4A453E] border border-[#D9D1C2] shadow-2xs">
-                  {baby.bloodType} 型
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center space-x-3 text-xs sm:text-sm text-[#6B6457] mt-2 flex-wrap gap-y-1">
-              <span className="flex items-center space-x-1.5">
-                <Calendar className="w-4 h-4 text-[#8C8475]" />
-                <span className="font-mono font-medium">{baby.birthDate}</span>
-              </span>
-              <span className="text-[#D1CEC4]">•</span>
-              <span className="font-bold text-[#2A2723] bg-[#EBE7DF]/90 px-2.5 py-0.5 rounded-lg border border-[#D9D1C2]">
-                {age.formatted} (第 {age.totalDays} 天)
-              </span>
-            </div>
-
-            {baby.allergies && baby.allergies.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-2.5 text-xs text-amber-950 bg-amber-50/90 px-3 py-1 rounded-xl border border-amber-300 shadow-2xs inline-flex max-w-full">
-                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
-                <span className="truncate font-medium">過敏提醒: {baby.allergies.join('、')}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Growth Metric Badges & Action Buttons */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
+      <div className="relative z-10">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 pb-6 border-b border-[#EBE7DF]">
           
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-white/90 p-3 rounded-2xl border border-[#EBE7DF] shadow-2xs">
-            
-            {/* Weight */}
-            <div className="px-3 py-1.5 text-center">
-              <div className="flex items-center justify-center space-x-1 text-[11px] text-[#8C8475]">
-                <Scale className="w-3.5 h-3.5 text-[#8C8475]" />
-                <span>最新體重</span>
+          {/* Baby Info Main Block */}
+          <div className="flex items-start sm:items-center space-x-5">
+            <div 
+              className="relative group cursor-pointer" 
+              onClick={onEditProfile} 
+              title="點擊更換大頭貼或編輯資料"
+            >
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-[#D9D1C2] p-1 bg-[#F9F6F0] shadow-sm">
+                <div className="w-full h-full rounded-full overflow-hidden">
+                  {babyProfile.avatarUrl ? (
+                    <img
+                      src={babyProfile.avatarUrl}
+                      alt={babyProfile.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-[#F2EDE4] text-[#2A2723]">
+                      <Baby className="w-8 h-8" strokeWidth={1.5} />
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="font-mono font-bold text-base text-[#2A2723] mt-0.5">
-                {weight} <span className="text-xs font-normal text-[#6B6457]">kg</span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#F2EDE4] text-[#2A2723] font-bold inline-block mt-0.5">
-                P{pWeight} 百分位
-              </span>
+              <button 
+                className="absolute bottom-0 right-0 p-2 rounded-full bg-[#2A2723] text-[#F9F6F0] shadow-sm hover:bg-[#4A453E] transition-colors border border-white"
+                title="編輯檔案"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            {/* Length */}
-            <div className="px-3 py-1.5 text-center border-l border-[#F2EDE4]">
-              <div className="flex items-center justify-center space-x-1 text-[11px] text-[#8C8475]">
-                <Ruler className="w-3.5 h-3.5 text-[#8C8475]" />
-                <span>最新身長</span>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-3xl sm:text-4xl font-serif font-bold tracking-tight text-[#2A2723]">
+                  {babyProfile.name}
+                </h1>
+                {babyProfile.nickname && (
+                  <span className="text-sm font-serif font-medium text-[#6B6457] bg-[#F2EDE4] px-3 py-1 rounded-full border border-[#D9D1C2]">
+                    「{babyProfile.nickname}」
+                  </span>
+                )}
+                <span className="text-xs font-sans uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#F2E6E6] text-[#6B3E3E] border border-[#E0D0D0]">
+                  {babyProfile.bloodType} 型
+                </span>
+                <span className="text-xs font-sans tracking-wide px-2.5 py-0.5 rounded-full bg-[#F2EDE4] text-[#6B6457] border border-[#EBE7DF]">
+                  妊娠 {babyProfile.gestationalWeeks} 週
+                </span>
               </div>
-              <div className="font-mono font-bold text-base text-[#2A2723] mt-0.5">
-                {length} <span className="text-xs font-normal text-[#6B6457]">cm</span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E6EBE6] text-[#2D3B2D] font-bold inline-block mt-0.5">
-                P{pLength} 百分位
-              </span>
-            </div>
 
-            {/* Head Circ */}
-            <div className="px-3 py-1.5 text-center border-t sm:border-t-0 sm:border-l border-[#F2EDE4]">
-              <div className="flex items-center justify-center space-x-1 text-[11px] text-[#8C8475]">
-                <Brain className="w-3.5 h-3.5 text-[#8C8475]" />
-                <span>最新頭圍</span>
+              <div className="flex items-center gap-4 text-xs sm:text-sm text-[#8C8475] mt-2 flex-wrap font-sans">
+                <span className="flex items-center gap-1.5 text-[#6B6457]">
+                  <Calendar className="w-3.5 h-3.5 text-[#A69D8D]" strokeWidth={1.75} />
+                  出生日期：<span className="font-mono text-[#2A2723]">{babyProfile.birthday}</span>{babyProfile.birthTime ? ` (${babyProfile.birthTime})` : ''}
+                </span>
+                <span className="text-[#D1CEC4]">•</span>
+                <span className="flex items-center gap-1.5 text-[#2A2723] font-medium">
+                  <Heart className="w-3.5 h-3.5 text-[#C4685D] fill-[#C4685D]" strokeWidth={1.5} />
+                  目前月齡：<span className="font-serif font-bold text-base text-[#2A2723]">{ageDetails.formattedText}</span>
+                </span>
               </div>
-              <div className="font-mono font-bold text-base text-[#2A2723] mt-0.5">
-                {headCirc} <span className="text-xs font-normal text-[#6B6457]">cm</span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E6E9F2] text-[#2C3345] font-bold inline-block mt-0.5">
-                P{pHead} 百分位
-              </span>
             </div>
-
-            {/* Vaccines */}
-            <div className="px-3 py-1.5 text-center border-t sm:border-t-0 sm:border-l border-[#F2EDE4]">
-              <div className="text-[11px] text-[#8C8475]">疫苗進度</div>
-              <div className="font-mono font-bold text-base text-[#2A2723] mt-0.5">
-                {completedVaccines}/{totalVaccines}
-              </div>
-              <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-sans truncate block max-w-[90px] mx-auto mt-0.5" title={nextPendingVaccine ? `下劑預定: ${nextPendingVaccine.targetAgeDescription}` : '已完成目前常規'}>
-                {nextPendingVaccine ? nextPendingVaccine.targetAgeDescription : '已全接種'}
-              </span>
-            </div>
-
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-2 justify-end flex-wrap">
-            {onOpenBackupModal && (
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={onOpenBackupModal}
-                className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-2xl bg-white border border-[#D9D1C2] hover:bg-[#EBE7DF] hover:border-[#8C8475] text-xs font-sans font-medium text-[#2A2723] shadow-2xs transition-colors cursor-pointer"
-                title="匯入 JSON 檔案或匯出資料庫備份"
-              >
-                <FileJson className="w-4 h-4 text-amber-700" />
-                <span>備份/匯入</span>
-              </motion.button>
-            )}
-
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={onOpenReportModal}
-              className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-2xl bg-white border border-[#D9D1C2] hover:bg-[#EBE7DF] hover:border-[#8C8475] text-xs font-sans font-medium text-[#2A2723] shadow-2xs transition-colors cursor-pointer"
-              title="匯出就醫與體檢 PDF 報告"
+          <div className="flex items-center gap-3 self-start lg:self-end">
+            <button
+              onClick={onOpenPediatricReport}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-sm transition-all active:scale-95"
+              title="產生兒科就診專用 PDF 報告"
             >
-              <FileSpreadsheet className="w-4 h-4 text-[#6B6457]" />
-              <span>就醫報告</span>
-            </motion.button>
+              <FileText className="w-3.5 h-3.5 text-[#D9D1C2]" strokeWidth={1.75} />
+              <span>匯出就醫報告</span>
+            </button>
 
-            {onNavigateToNotes && (
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={onNavigateToNotes}
-                className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-2xl bg-white border border-[#D9D1C2] hover:bg-[#EBE7DF] hover:border-[#8C8475] text-xs font-sans font-medium text-[#2A2723] shadow-2xs transition-colors cursor-pointer"
-                title="查看交班便箋"
-              >
-                <StickyNoteIcon className="w-4 h-4 text-amber-700" />
-                <span>交班便箋</span>
-              </motion.button>
-            )}
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onOpenEditProfile}
-              className="p-2.5 rounded-2xl bg-[#2A2723] text-[#F9F6F0] hover:bg-[#4A453E] shadow-2xs transition-colors cursor-pointer"
-              title="編輯寶寶資料"
+            <button
+              onClick={onEditProfile}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-sans tracking-wider bg-[#F9F6F0] text-[#4A453E] border border-[#D1CEC4] hover:bg-[#F2EDE4] transition-colors"
             >
-              <Edit3 className="w-4 h-4" strokeWidth={1.75} />
-            </motion.button>
+              <Edit3 className="w-3.5 h-3.5 text-[#8C8475]" />
+              <span>檔案設定</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Artistic Metrics Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          
+          {/* Weight Card (Warm Ivory Art Card) */}
+          <div 
+            onClick={onOpenGrowthTracker}
+            className="bg-[#F9F6F0] p-5 rounded-[28px] border border-[#EBE7DF] hover:border-[#D1CEC4] shadow-xs hover:scale-[1.01] transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between text-[#8C8475] text-[11px] font-sans uppercase tracking-widest mb-2">
+              <span className="flex items-center gap-1.5 text-[#4A453E] font-medium">
+                <Weight className="w-3.5 h-3.5 text-[#8C8475]" strokeWidth={1.75} />
+                最新體重
+              </span>
+              {latestGrowth?.percentileWeight !== undefined && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E6DFD1] text-[#2A2723] font-bold">
+                  P{latestGrowth.percentileWeight}
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-1 my-1">
+              <span className="text-3xl font-serif font-bold text-[#2A2723] group-hover:translate-x-0.5 transition-transform font-mono">
+                {latestGrowth ? latestGrowth.weight : (babyProfile.birthWeight > 0 ? babyProfile.birthWeight : '--')}
+              </span>
+              <span className="text-xs font-sans text-[#8C8475]">kg</span>
+            </div>
+            <p className="text-[11px] text-[#A69D8D] font-sans">
+              初生基準: <span className="font-mono text-[#6B6457]">{babyProfile.birthWeight > 0 ? `${babyProfile.birthWeight} kg` : '未設定'}</span>
+            </p>
+          </div>
+
+          {/* Length Card (Sage Artistic Tint) */}
+          <div 
+            onClick={onOpenGrowthTracker}
+            className="bg-[#E6EBE6] p-5 rounded-[28px] border border-[#D5DDD5] hover:border-[#C4CCC4] shadow-xs hover:scale-[1.01] transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between text-[#5C6B5C] text-[11px] font-sans uppercase tracking-widest mb-2">
+              <span className="flex items-center gap-1.5 font-medium text-[#3E4A3E]">
+                <Ruler className="w-3.5 h-3.5 text-[#5C6B5C]" strokeWidth={1.75} />
+                最新身長
+              </span>
+              {latestGrowth?.percentileLength !== undefined && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/70 text-[#3E4A3E] font-bold border border-[#C4CCC4]">
+                  P{latestGrowth.percentileLength}
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-1 my-1">
+              <span className="text-3xl font-serif font-bold text-[#2A2723] group-hover:translate-x-0.5 transition-transform font-mono">
+                {latestGrowth ? latestGrowth.length : (babyProfile.birthLength > 0 ? babyProfile.birthLength : '--')}
+              </span>
+              <span className="text-xs font-sans text-[#5C6B5C]">cm</span>
+            </div>
+            <p className="text-[11px] text-[#6E7D6E] font-sans">
+              初生基準: <span className="font-mono text-[#3E4A3E]">{babyProfile.birthLength > 0 ? `${babyProfile.birthLength} cm` : '未設定'}</span>
+            </p>
+          </div>
+
+          {/* Head Circ Card (Periwinkle Slate Artistic Tint) */}
+          <div 
+            onClick={onOpenGrowthTracker}
+            className="bg-[#E6E9F2] p-5 rounded-[28px] border border-[#D5D9E6] hover:border-[#C2C7DA] shadow-xs hover:scale-[1.01] transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between text-[#555C6E] text-[11px] font-sans uppercase tracking-widest mb-2">
+              <span className="flex items-center gap-1.5 font-medium text-[#3A4050]">
+                <Brain className="w-3.5 h-3.5 text-[#555C6E]" strokeWidth={1.75} />
+                最新頭圍
+              </span>
+              {latestGrowth?.percentileHeadCirc !== undefined && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/70 text-[#3A4050] font-bold border border-[#C2C7DA]">
+                  P{latestGrowth.percentileHeadCirc}
+                </span>
+              )}
+            </div>
+            <div className="flex items-baseline gap-1 my-1">
+              <span className="text-3xl font-serif font-bold text-[#2A2723] group-hover:translate-x-0.5 transition-transform font-mono">
+                {latestGrowth ? latestGrowth.headCirc : (babyProfile.birthHeadCirc > 0 ? babyProfile.birthHeadCirc : '--')}
+              </span>
+              <span className="text-xs font-sans text-[#555C6E]">cm</span>
+            </div>
+            <p className="text-[11px] text-[#6E758A] font-sans">
+              初生基準: <span className="font-mono text-[#3A4050]">{babyProfile.birthHeadCirc > 0 ? `${babyProfile.birthHeadCirc} cm` : '未設定'}</span>
+            </p>
+          </div>
+
+          {/* Upcoming Vaccine Alert Card (Charcoal Artistic Hero Card) */}
+          <div 
+            onClick={onOpenVaccineTracker}
+            className="bg-[#2A2723] text-[#F9F6F0] p-5 rounded-[28px] border border-[#4A453E] hover:border-[#6B6457] shadow-sm hover:scale-[1.01] transition-all cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between text-[#A69D8D] text-[11px] font-sans uppercase tracking-widest mb-2">
+              <span className="flex items-center gap-1.5 text-[#D9D1C2] font-medium">
+                <Syringe className="w-3.5 h-3.5 text-[#D9D1C2]" strokeWidth={1.75} />
+                疫苗接種提醒
+              </span>
+              {daysUntilVaccine <= 0 ? (
+                <span className="text-[10px] font-sans uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#F2E6E6] text-[#2A2723] font-bold">
+                  應施打
+                </span>
+              ) : (
+                <span className="text-[10px] font-sans uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#D9D1C2] text-[#2A2723] font-bold">
+                  剩餘 {daysUntilVaccine} 天
+                </span>
+              )}
+            </div>
+            {nextVaccine ? (
+              <div className="my-1">
+                <p className="text-base font-serif font-bold text-[#F9F6F0] truncate">
+                  {nextVaccine.vaccineName}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs text-[#A69D8D] font-sans mt-0.5">
+                  <Clock className="w-3 h-3 text-[#A69D8D]" strokeWidth={1.5} />
+                  <span className="font-mono text-[11px]">{nextVaccine.scheduledDate}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-[#D9D1C2] font-sans my-2">常規疫苗皆已完成！</div>
+            )}
+            <p className="text-[10px] font-sans uppercase tracking-wider text-[#8C8475] group-hover:text-[#D9D1C2] transition-colors">
+              點擊查看時程表 →
+            </p>
           </div>
 
         </div>
 
       </div>
-    </motion.section>
+    </section>
   );
 };
