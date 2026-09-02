@@ -25,8 +25,21 @@ import type { VaccineRecord, MedicalVisit, BabyProfile } from '../types';
 import { formatDate } from '../utils/dateUtils';
 import { MedicalPassport } from './MedicalPassport';
 import { generateTaiwanFullVaccineSchedule } from '../data/vaccineScheduleData';
-import { triggerCelebration } from '../utils/confetti';
 import { useToast } from '../context/ToastContext';
+import confetti from 'canvas-confetti';
+
+const triggerCelebration = () => {
+  try {
+    confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { y: 0.65 },
+      colors: ['#D4AF37', '#87A96B', '#E5A9A9', '#709775', '#A9CCE3'],
+    });
+  } catch (e) {
+    console.debug('Confetti animation:', e);
+  }
+};
 
 interface VaccineTrackerProps {
   vaccineRecords: VaccineRecord[];
