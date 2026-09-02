@@ -29,6 +29,7 @@ import {
   joinFamilyByCode,
   uploadAllLocalDataToCloud,
   downloadAllCloudData,
+  checkBabyExistsInCloud,
 } from './firebase';
 import { localStorageService } from './utils/storage';
 import {
@@ -56,6 +57,7 @@ import { PediatricReportModal } from './components/PediatricReportModal';
 import { CloudSyncModal } from './components/CloudSyncModal';
 import { DataBackupModal } from './components/DataBackupModal';
 import { ToastProvider } from './context/ToastContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import type { ParsedImportResult } from './utils/dataImportExport';
 
 function BabyAppContent() {
@@ -97,6 +99,19 @@ function BabyAppContent() {
   const [dismissedNotiIds, setDismissedNotiIds] = useState<string[]>([]);
   const [lastPushedIds, setLastPushedIds] = useState<string[]>([]);
 
+  // Network connectivity status listener
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    setIsOnline(navigator.onLine);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // 1. Initial Auth and Realtime Subscriptions setup
   useEffect(() => {
     let unsubs: (() => void)[] = [];
@@ -104,75 +119,63 @@ function BabyAppContent() {
     const initFirebase = async () => {
       try {
         await initAuth();
-        setIsOnline(true);
+        setIsOnline(navigator.onLine);
 
         // Register room code in cloud
         if (familyCode) {
           await registerFamilyShareRoom(familyCode, baby.id, baby.name, memberName);
         }
 
-        // Realtime Listeners
+        // Check if cloud already has this baby profile
+        const exists = await checkBabyExistsInCloud(baby.id);
+        if (!exists) {
+          // First time initial seeding of local state to Firestore
+          await uploadAllLocalDataToCloud(
+            baby,
+            growthRecords,
+            diaryEntries,
+            vaccineRecords,
+            medicalVisits,
+            stickyNotes
+          );
+        }
+
+        // Realtime Listeners with direct reactive data flow
         const unsubBaby = listenToBabyProfile(baby.id, (cloudBaby) => {
           if (cloudBaby) {
             setBaby(cloudBaby);
             localStorageService.saveBabyProfile(cloudBaby);
-          } else {
-            // First time seeding to cloud if missing
-            syncBabyProfileToCloud({ ...baby, familyCode });
           }
         });
         unsubs.push(unsubBaby);
 
         const unsubGrowth = listenToGrowthRecords(baby.id, (records) => {
-          if (records.length > 0) {
-            setGrowthRecords(records);
-            localStorageService.saveGrowthRecords(records);
-          } else if (growthRecords.length > 0) {
-            growthRecords.forEach((r) => saveGrowthRecordToCloud({ ...r, babyId: baby.id }));
-          }
+          setGrowthRecords(records);
+          localStorageService.saveGrowthRecords(records);
         });
         unsubs.push(unsubGrowth);
 
         const unsubDiary = listenToDiaryEntries(baby.id, (entries) => {
-          if (entries.length > 0) {
-            const sorted = entries.sort(
-              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-            );
-            setDiaryEntries(sorted);
-            localStorageService.saveDiaryEntries(sorted);
-          } else if (diaryEntries.length > 0) {
-            diaryEntries.forEach((e) => saveDiaryEntryToCloud({ ...e, babyId: baby.id }));
-          }
+          setDiaryEntries(entries);
+          localStorageService.saveDiaryEntries(entries);
         });
         unsubs.push(unsubDiary);
 
         const unsubVaccines = listenToVaccineRecords(baby.id, (records) => {
-          if (records.length > 0) {
-            setVaccineRecords(records);
-            localStorageService.saveVaccineRecords(records);
-          } else if (vaccineRecords.length > 0) {
-            vaccineRecords.forEach((v) => saveVaccineRecordToCloud({ ...v, babyId: baby.id }));
-          }
+          setVaccineRecords(records);
+          localStorageService.saveVaccineRecords(records);
         });
         unsubs.push(unsubVaccines);
 
         const unsubVisits = listenToMedicalVisits(baby.id, (visits) => {
-          if (visits.length > 0) {
-            setMedicalVisits(visits);
-            localStorageService.saveMedicalVisits(visits);
-          } else if (medicalVisits.length > 0) {
-            medicalVisits.forEach((m) => saveMedicalVisitToCloud({ ...m, babyId: baby.id }));
-          }
+          setMedicalVisits(visits);
+          localStorageService.saveMedicalVisits(visits);
         });
         unsubs.push(unsubVisits);
 
         const unsubSticky = listenToStickyNotes(baby.id, (notes) => {
-          if (notes.length > 0) {
-            setStickyNotes(notes);
-            localStorageService.saveStickyNotes(notes);
-          } else if (stickyNotes.length > 0) {
-            stickyNotes.forEach((s) => saveStickyNoteToCloud({ ...s, babyId: baby.id }));
-          }
+          setStickyNotes(notes);
+          localStorageService.saveStickyNotes(notes);
         });
         unsubs.push(unsubSticky);
       } catch (err) {
@@ -486,26 +489,16 @@ function BabyAppContent() {
         setBaby(cloudData.baby);
         localStorageService.saveBabyProfile(cloudData.baby);
       }
-      if (cloudData.growthRecords.length > 0) {
-        setGrowthRecords(cloudData.growthRecords);
-        localStorageService.saveGrowthRecords(cloudData.growthRecords);
-      }
-      if (cloudData.diaryEntries.length > 0) {
-        setDiaryEntries(cloudData.diaryEntries);
-        localStorageService.saveDiaryEntries(cloudData.diaryEntries);
-      }
-      if (cloudData.vaccineRecords.length > 0) {
-        setVaccineRecords(cloudData.vaccineRecords);
-        localStorageService.saveVaccineRecords(cloudData.vaccineRecords);
-      }
-      if (cloudData.medicalVisits.length > 0) {
-        setMedicalVisits(cloudData.medicalVisits);
-        localStorageService.saveMedicalVisits(cloudData.medicalVisits);
-      }
-      if (cloudData.stickyNotes.length > 0) {
-        setStickyNotes(cloudData.stickyNotes);
-        localStorageService.saveStickyNotes(cloudData.stickyNotes);
-      }
+      setGrowthRecords(cloudData.growthRecords || []);
+      localStorageService.saveGrowthRecords(cloudData.growthRecords || []);
+      setDiaryEntries(cloudData.diaryEntries || []);
+      localStorageService.saveDiaryEntries(cloudData.diaryEntries || []);
+      setVaccineRecords(cloudData.vaccineRecords || []);
+      localStorageService.saveVaccineRecords(cloudData.vaccineRecords || []);
+      setMedicalVisits(cloudData.medicalVisits || []);
+      localStorageService.saveMedicalVisits(cloudData.medicalVisits || []);
+      setStickyNotes(cloudData.stickyNotes || []);
+      localStorageService.saveStickyNotes(cloudData.stickyNotes || []);
 
       setIsSyncing(false);
       return true;
@@ -769,9 +762,11 @@ function BabyAppContent() {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <BabyAppContent />
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <BabyAppContent />
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

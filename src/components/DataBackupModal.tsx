@@ -56,8 +56,6 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({
   familyCode,
   onImportData,
 }) => {
-  if (!isOpen) return null;
-
   const [activeMode, setActiveMode] = useState<'import' | 'export'>('import');
   const [jsonText, setJsonText] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -69,6 +67,16 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({
   );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setJsonText('');
+      setParsedPreview(null);
+      setStatusMsg(null);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   // Parse whenever jsonText changes
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

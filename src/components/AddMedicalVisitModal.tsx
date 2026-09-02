@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { X, FileHeart, Building, User, Calendar, Pill } from 'lucide-react';
 import type { MedicalVisit } from '../types';
 
@@ -13,10 +14,7 @@ export const AddMedicalVisitModal: React.FC<AddMedicalVisitModalProps> = ({
   onClose,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [date, setDate] = useState(todayStr);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [clinic, setClinic] = useState('台大婦幼小兒科');
   const [doctor, setDoctor] = useState('李醫師');
   const [reason, setReason] = useState('常規健檢 / 輕微流鼻涕');
@@ -25,6 +23,22 @@ export const AddMedicalVisitModal: React.FC<AddMedicalVisitModalProps> = ({
   const [weight, setWeight] = useState<number | ''>('');
   const [prescriptions, setPrescriptions] = useState('');
   const [doctorAdvice, setDoctorAdvice] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setDate(new Date().toISOString().split('T')[0]);
+      setClinic('台大婦幼小兒科');
+      setDoctor('李醫師');
+      setReason('常規健檢 / 輕微流鼻涕');
+      setDiagnosis('');
+      setTemperature(36.8);
+      setWeight('');
+      setPrescriptions('');
+      setDoctorAdvice('');
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,8 +58,13 @@ export const AddMedicalVisitModal: React.FC<AddMedicalVisitModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs">
-      <div className="bg-[#F9F6F0] w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#D9D1C2] shadow-2xl p-6 sm:p-7 space-y-5 animate-fadeIn max-h-[90vh] overflow-y-auto">
-        
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+        className="bg-[#F9F6F0] w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#D9D1C2] shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto"
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -64,7 +83,7 @@ export const AddMedicalVisitModal: React.FC<AddMedicalVisitModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-[#8C8475] hover:text-[#2A2723] rounded-xl hover:bg-[#EBE7DF] transition-colors"
+            className="p-2 text-[#8C8475] hover:text-[#2A2723] rounded-xl hover:bg-[#EBE7DF] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -143,35 +162,36 @@ export const AddMedicalVisitModal: React.FC<AddMedicalVisitModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[#6B6457] font-medium mb-1">醫師叮嚀與居家護理</label>
-            <input
-              type="text"
+            <label className="block text-[#6B6457] font-medium mb-1">醫師特別叮嚀與衛教</label>
+            <textarea
+              rows={2}
               value={doctorAdvice}
               onChange={(e) => setDoctorAdvice(e.target.value)}
-              placeholder="多補充水分水分、注意是否有喘鳴聲..."
-              className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2A2723]"
+              placeholder="注意活動力與食慾，多補充水分，若高燒超過 3 天或呼吸急促需立即急診..."
+              className="w-full bg-white border border-[#D9D1C2] rounded-xl p-3 text-xs text-[#2A2723]"
             />
           </div>
 
-          <div className="flex items-center justify-end space-x-2 pt-2">
+          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#EBE7DF]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-[#EBE7DF] text-[#6B6457] text-xs font-medium hover:bg-[#D9D1C2]"
+              className="px-4 py-2 rounded-full border border-[#D9D1C2] text-xs text-[#6B6457] hover:bg-[#EBE7DF] cursor-pointer"
             >
               取消
             </button>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               type="submit"
-              className="px-5 py-2 rounded-xl bg-[#2A2723] text-[#F9F6F0] text-xs font-medium hover:bg-[#4A453E]"
+              className="px-6 py-2 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-semibold hover:bg-[#4A453E] shadow-xs cursor-pointer"
             >
               儲存看診紀錄
-            </button>
+            </motion.button>
           </div>
 
         </form>
-
-      </div>
+      </motion.div>
     </div>
   );
 };

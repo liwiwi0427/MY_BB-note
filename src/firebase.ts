@@ -58,6 +58,26 @@ export const db = (() => {
 
 export const auth = getAuth(app);
 
+// Helper to deeply sanitize Firestore payloads (Firestore rejects undefined values)
+export function sanitizePayload<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizePayload(item)) as unknown as T;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const res: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) {
+        res[k] = sanitizePayload(v);
+      }
+    }
+    return res as T;
+  }
+  return data;
+}
+
 // Authentication helper
 export const initAuth = async (): Promise<User | null> => {
   return new Promise((resolve) => {
@@ -66,7 +86,12 @@ export const initAuth = async (): Promise<User | null> => {
       resolve(auth.currentUser);
       return;
     }
+    const timeout = setTimeout(() => {
+      resolve(auth.currentUser || null);
+    }, 2500);
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(timeout);
       unsubscribe();
       if (user) {
         resolve(user);
@@ -75,7 +100,7 @@ export const initAuth = async (): Promise<User | null> => {
           const cred = await signInAnonymously(auth);
           resolve(cred.user);
         } catch (error) {
-          console.warn('Anonymous auth sign-in notice:', error);
+          console.warn('Anonymous auth sign-in notice (will proceed with public rules):', error);
           resolve(null);
         }
       }
@@ -87,7 +112,7 @@ export const initAuth = async (): Promise<User | null> => {
 export const syncBabyProfileToCloud = async (baby: BabyProfile): Promise<void> => {
   try {
     const babyRef = doc(db, 'babies', baby.id);
-    await setDoc(babyRef, { ...baby, updatedAt: new Date().toISOString() }, { merge: true });
+    await setDoc(babyRef, sanitizePayload({ ...baby, updatedAt: new Date().toISOString() }), { merge: true });
   } catch (err) {
     console.error('Error syncing baby profile to cloud:', err);
   }
@@ -117,7 +142,7 @@ export const listenToBabyProfile = (
 export const saveGrowthRecordToCloud = async (record: GrowthRecord): Promise<void> => {
   try {
     const ref = doc(db, 'growth_records', record.id);
-    await setDoc(ref, record, { merge: true });
+    await setDoc(ref, sanitizePayload(record), { merge: true });
   } catch (err) {
     console.error('Error saving growth record to cloud:', err);
   }
@@ -157,7 +182,7 @@ export const listenToGrowthRecords = (
 export const saveDiaryEntryToCloud = async (entry: DiaryEntry): Promise<void> => {
   try {
     const ref = doc(db, 'diary_entries', entry.id);
-    await setDoc(ref, entry, { merge: true });
+    await setDoc(ref, sanitizePayload(entry), { merge: true });
   } catch (err) {
     console.error('Error saving diary entry to cloud:', err);
   }
@@ -196,7 +221,7 @@ export const listenToDiaryEntries = (
 export const saveVaccineRecordToCloud = async (record: VaccineRecord): Promise<void> => {
   try {
     const ref = doc(db, 'vaccine_records', record.id);
-    await setDoc(ref, record, { merge: true });
+    await setDoc(ref, sanitizePayload(record), { merge: true });
   } catch (err) {
     console.error('Error saving vaccine record to cloud:', err);
   }
@@ -227,7 +252,7 @@ export const listenToVaccineRecords = (
 export const saveMedicalVisitToCloud = async (visit: MedicalVisit): Promise<void> => {
   try {
     const ref = doc(db, 'medical_visits', visit.id);
-    await setDoc(ref, visit, { merge: true });
+    await setDoc(ref, sanitizePayload(visit), { merge: true });
   } catch (err) {
     console.error('Error saving medical visit to cloud:', err);
   }
@@ -266,7 +291,7 @@ export const listenToMedicalVisits = (
 export const saveStickyNoteToCloud = async (note: StickyNote): Promise<void> => {
   try {
     const ref = doc(db, 'sticky_notes', note.id);
-    await setDoc(ref, note, { merge: true });
+    await setDoc(ref, sanitizePayload(note), { merge: true });
   } catch (err) {
     console.error('Error saving sticky note to cloud:', err);
   }
@@ -313,13 +338,13 @@ export const registerFamilyShareRoom = async (
     const cleanCode = familyCode.trim().toUpperCase();
     if (!cleanCode) return;
 
-    const payload = {
+    const payload = sanitizePayload({
       familyCode: cleanCode,
       babyId,
       babyName: babyName || '寶寶',
       updatedBy: memberName || '照護者',
       lastActive: new Date().toISOString(),
-    };
+    });
 
     const roomRef = doc(db, 'family_rooms', cleanCode);
     await setDoc(roomRef, payload, { merge: true });
@@ -328,12 +353,12 @@ export const registerFamilyShareRoom = async (
     const rawCode = cleanCode.replace(/[^A-Z0-9]/g, '');
     if (rawCode && rawCode !== cleanCode) {
       const altRef = doc(db, 'family_rooms', rawCode);
-      await setDoc(altRef, { ...payload, familyCode: cleanCode }, { merge: true });
+      await setDoc(altRef, sanitizePayload({ ...payload, familyCode: cleanCode }), { merge: true });
     }
 
     // Update baby document with familyCode
     const babyRef = doc(db, 'babies', babyId);
-    await setDoc(babyRef, { familyCode: cleanCode, updatedAt: new Date().toISOString() }, { merge: true });
+    await setDoc(babyRef, sanitizePayload({ familyCode: cleanCode, updatedAt: new Date().toISOString() }), { merge: true });
   } catch (err) {
     console.warn('registerFamilyShareRoom notice:', err);
   }
@@ -423,6 +448,16 @@ export const joinFamilyByCode = async (
   } catch (err) {
     console.error('joinFamilyByCode error:', err);
     return null;
+  }
+};
+
+export const checkBabyExistsInCloud = async (babyId: string): Promise<boolean> => {
+  try {
+    const snap = await getDoc(doc(db, 'babies', babyId));
+    return snap.exists();
+  } catch (err) {
+    console.warn('checkBabyExistsInCloud check notice:', err);
+    return false;
   }
 };
 

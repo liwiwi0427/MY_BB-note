@@ -16,8 +16,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   baby,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
   const [name, setName] = useState(baby.name);
   const [nickname, setNickname] = useState(baby.nickname || '');
   const [gender, setGender] = useState(baby.gender);
@@ -29,6 +27,24 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [allergiesText, setAllergiesText] = useState(baby.allergies?.join('、') || '');
   const [emergencyContact, setEmergencyContact] = useState(baby.emergencyContact || '');
   const [notes, setNotes] = useState(baby.notes || '');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setName(baby.name);
+      setNickname(baby.nickname || '');
+      setGender(baby.gender);
+      setBirthDate(baby.birthDate);
+      setBirthWeight(baby.birthWeight);
+      setBirthLength(baby.birthLength);
+      setBirthHeadCirc(baby.birthHeadCirc);
+      setBloodType(baby.bloodType || 'A型 Rh+');
+      setAllergiesText(baby.allergies?.join('、') || '');
+      setEmergencyContact(baby.emergencyContact || '');
+      setNotes(baby.notes || '');
+    }
+  }, [baby, isOpen]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

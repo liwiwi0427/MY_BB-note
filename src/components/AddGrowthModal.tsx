@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { X, TrendingUp, Scale, Ruler, Brain, Calendar } from 'lucide-react';
 import type { GrowthRecord, BabyProfile } from '../types';
 import { calculateAge } from '../utils/dateUtils';
@@ -18,15 +19,25 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
   onSave,
   editingRecord,
 }) => {
-  if (!isOpen) return null;
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [date, setDate] = useState(editingRecord ? editingRecord.date : todayStr);
+  const [date, setDate] = useState(editingRecord ? editingRecord.date : new Date().toISOString().split('T')[0]);
   const [weight, setWeight] = useState<number | ''>(editingRecord ? editingRecord.weight : 4.5);
   const [length, setLength] = useState<number | ''>(editingRecord ? editingRecord.length : 55.0);
   const [headCirc, setHeadCirc] = useState<number | ''>(editingRecord ? editingRecord.headCirc : 37.0);
   const [doctorNote, setDoctorNote] = useState(editingRecord?.doctorNote || '');
   const [measuredBy, setMeasuredBy] = useState(editingRecord?.measuredBy || '小兒科門診 / 家中');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setDate(editingRecord ? editingRecord.date : new Date().toISOString().split('T')[0]);
+      setWeight(editingRecord ? editingRecord.weight : 4.5);
+      setLength(editingRecord ? editingRecord.length : 55.0);
+      setHeadCirc(editingRecord ? editingRecord.headCirc : 37.0);
+      setDoctorNote(editingRecord?.doctorNote || '');
+      setMeasuredBy(editingRecord?.measuredBy || '小兒科門診 / 家中');
+    }
+  }, [isOpen, editingRecord]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,8 +58,13 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs">
-      <div className="bg-[#F9F6F0] w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#D9D1C2] shadow-2xl p-6 sm:p-7 space-y-5 animate-fadeIn max-h-[90vh] overflow-y-auto">
-        
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+        className="bg-[#F9F6F0] w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] border border-[#D9D1C2] shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto"
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -67,7 +83,7 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-[#8C8475] hover:text-[#2A2723] rounded-xl hover:bg-[#EBE7DF] transition-colors"
+            className="p-2 text-[#8C8475] hover:text-[#2A2723] rounded-xl hover:bg-[#EBE7DF] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -150,35 +166,36 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[#6B6457] font-medium mb-1">醫師評估健檢備註</label>
+            <label className="block text-[#6B6457] font-medium mb-1">兒科醫師評語 / 發育觀察 (選填)</label>
             <textarea
               rows={2}
               value={doctorNote}
               onChange={(e) => setDoctorNote(e.target.value)}
-              placeholder="生長百分位良好、脖子有力、追視靈活..."
-              className="w-full bg-white border border-[#D9D1C2] rounded-xl p-3 text-xs text-[#2A2723] focus:outline-none"
+              placeholder="例如: 醫師表示生長曲線維持在50百分位，活動力佳..."
+              className="w-full bg-white border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2A2723] focus:outline-none"
             />
           </div>
 
-          <div className="flex items-center justify-end space-x-2 pt-2">
+          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#EBE7DF]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-[#EBE7DF] text-[#6B6457] text-xs font-medium hover:bg-[#D9D1C2] transition-colors"
+              className="px-4 py-2 rounded-full border border-[#D9D1C2] text-xs text-[#6B6457] hover:bg-[#EBE7DF] cursor-pointer"
             >
               取消
             </button>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               type="submit"
-              className="px-5 py-2 rounded-xl bg-[#2A2723] text-[#F9F6F0] text-xs font-medium hover:bg-[#4A453E] transition-colors shadow-xs"
+              className="px-6 py-2 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-semibold hover:bg-[#4A453E] shadow-xs cursor-pointer"
             >
-              {editingRecord ? '儲存修改' : '儲存測量數據'}
-            </button>
+              {editingRecord ? '儲存變更' : '新增生長紀錄'}
+            </motion.button>
           </div>
 
         </form>
-
-      </div>
+      </motion.div>
     </div>
   );
 };

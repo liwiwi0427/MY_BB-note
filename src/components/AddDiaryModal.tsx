@@ -30,13 +30,9 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
   editingEntry,
   currentMemberName,
 }) => {
-  if (!isOpen) return null;
-
-  const nowIso = new Date().toISOString().slice(0, 16);
-
   const [type, setType] = useState<DiaryType>(editingEntry?.type || 'feed_bottle');
   const [timestamp, setTimestamp] = useState(
-    editingEntry ? editingEntry.timestamp.slice(0, 16) : nowIso
+    editingEntry ? editingEntry.timestamp.slice(0, 16) : new Date().toISOString().slice(0, 16)
   );
   const [title, setTitle] = useState(editingEntry?.title || '');
   const [note, setNote] = useState(editingEntry?.note || '');
@@ -56,6 +52,25 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
   const [loggedBy, setLoggedBy] = useState(
     editingEntry?.loggedBy || currentMemberName || '媽媽'
   );
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setType(editingEntry?.type || 'feed_bottle');
+      setTimestamp(editingEntry ? editingEntry.timestamp.slice(0, 16) : new Date().toISOString().slice(0, 16));
+      setTitle(editingEntry?.title || '');
+      setNote(editingEntry?.note || '');
+      setAmountMl(editingEntry?.amountMl || 120);
+      setDurationMinutes(editingEntry?.durationMinutes || 60);
+      setTemperatureCelsius(editingEntry?.temperatureCelsius || 36.8);
+      setDiaperWetness(editingEntry?.diaperWetness || '適中正常');
+      setDiaperColor(editingEntry?.diaperColor || '金黃色 (正常)');
+      setDiaperStoolTexture(editingEntry?.diaperStoolTexture || '糊狀軟便');
+      setMood(editingEntry?.mood || 'happy');
+      setLoggedBy(editingEntry?.loggedBy || currentMemberName || '媽媽');
+    }
+  }, [isOpen, editingEntry, currentMemberName]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
