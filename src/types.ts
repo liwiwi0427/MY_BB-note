@@ -3,6 +3,7 @@ export type Gender = 'male' | 'female';
 export interface BabyProfile {
   id: string;
   name: string;
+  nickname?: string;
   gender: Gender;
   birthDate: string; // YYYY-MM-DD
   birthWeight: number; // in kg

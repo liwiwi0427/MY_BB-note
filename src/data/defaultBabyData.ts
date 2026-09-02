@@ -3,7 +3,8 @@ import { initialVaccineSchedule } from './vaccineScheduleData';
 
 export const defaultBabyProfile: BabyProfile = {
   id: 'baby-default-1',
-  name: '小元寶 (Leo)',
+  name: '李元寶',
+  nickname: '小元寶 (Leo)',
   gender: 'male',
   birthDate: '2026-03-15',
   birthWeight: 3.35,

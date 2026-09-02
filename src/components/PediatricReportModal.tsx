@@ -48,9 +48,10 @@ export const PediatricReportModal: React.FC<PediatricReportModalProps> = ({
       // Baby Basic Info Table
       autoTable(doc, {
         startY: 32,
-        head: [['Baby Name', 'Gender', 'Birth Date', 'Age', 'Blood Type', 'Emergency Contact']],
+        head: [['Baby Name', 'Nickname', 'Gender', 'Birth Date', 'Age', 'Blood Type', 'Emergency Contact']],
         body: [[
           baby.name,
+          baby.nickname || 'N/A',
           baby.gender === 'male' ? 'Boy (Male)' : 'Girl (Female)',
           baby.birthDate,
           `${age.formatted} (${age.totalDays} Days)`,
@@ -152,9 +153,16 @@ export const PediatricReportModal: React.FC<PediatricReportModalProps> = ({
           
           <div className="flex items-center justify-between border-b border-[#EBE7DF] pb-3">
             <div>
-              <span className="font-serif font-bold text-base text-[#2A2723] block">
-                {baby.name} 的兒科門診摘要
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-serif font-bold text-base text-[#2A2723] block">
+                  {baby.name} 的兒科門診摘要
+                </span>
+                {baby.nickname && (
+                  <span className="text-xs font-sans px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-medium">
+                    {baby.nickname}
+                  </span>
+                )}
+              </div>
               <span className="text-[#8C8475] text-[11px]">
                 性別: {baby.gender === 'male' ? '男寶' : '女寶'} | 目前年齡: {age.formatted} ({age.totalDays}天) | 血型: {baby.bloodType || '未註記'}
               </span>

@@ -11,8 +11,6 @@ import {
   StickyNote as StickyNoteIcon,
   ShieldAlert,
   FileJson,
-  Copy,
-  Check,
 } from 'lucide-react';
 import type { BabyProfile, GrowthRecord, VaccineRecord } from '../types';
 import { calculateAge } from '../utils/dateUtils';
@@ -38,8 +36,6 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
   onOpenBackupModal,
   onNavigateToNotes,
 }) => {
-  const { success } = useToast();
-  const [copiedCode, setCopiedCode] = React.useState(false);
   const age = calculateAge(baby.birthDate);
 
   const weight = latestGrowthRecord ? latestGrowthRecord.weight : baby.birthWeight;
@@ -54,15 +50,6 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
   const completedVaccines = vaccineRecords.filter((v) => v.isCompleted).length;
   const totalVaccines = vaccineRecords.length;
   const nextPendingVaccine = vaccineRecords.find((v) => !v.isCompleted);
-
-  const handleCopyCode = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!baby.familyCode) return;
-    navigator.clipboard.writeText(baby.familyCode);
-    setCopiedCode(true);
-    success('已複製家庭房號', `房號：${baby.familyCode}，可直接傳給家人加入即時同步`);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
 
   return (
     <motion.section
@@ -105,21 +92,15 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-serif font-bold text-[#2A2723] tracking-tight">
                 {baby.name}
               </h1>
+              {baby.nickname && (
+                <span className="text-xs sm:text-sm font-sans font-medium px-2.5 py-0.5 rounded-full bg-amber-100/80 text-amber-900 border border-amber-300/80 shadow-2xs">
+                  {baby.nickname}
+                </span>
+              )}
               {baby.bloodType && (
                 <span className="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-white text-[#4A453E] border border-[#D9D1C2] shadow-2xs">
                   {baby.bloodType} 型
                 </span>
-              )}
-              {baby.familyCode && (
-                <button
-                  onClick={handleCopyCode}
-                  className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                  title="點擊複製家庭同步房號"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>房號: {baby.familyCode}</span>
-                  {copiedCode ? <Check className="w-3 h-3 text-emerald-700" /> : <Copy className="w-3 h-3 text-emerald-700" />}
-                </button>
               )}
             </div>
 
