@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Navbar, 
   TabType 
@@ -31,6 +31,7 @@ import {
   pushToCloud, 
   pullFromCloud 
 } from './utils/storage';
+import { subscribeBabyDataFromFirebase } from './utils/firebase';
 import { 
   ShieldCheck, 
   Heart, 
@@ -45,6 +46,10 @@ export default function App() {
   // Main Data Store State
   const [appData, setAppData] = useState<AppDataStore>(() => loadAppData());
   const [activeTab, setActiveTab] = useState<TabType>('diary');
+
+  // Firebase Real-time sync state
+  const [isLiveSyncing, setIsLiveSyncing] = useState<boolean>(true);
+  const lastProcessedRemoteUpdatedAtRef = useRef<string | null>(null);
 
   // Modal States
   const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
@@ -70,21 +75,68 @@ export default function App() {
     saveAppData(appData);
   }, [appData]);
 
-  // Push to Cloud Handler
+  // Firebase Live Sync Subscription (Multi-device real-time listener)
+  useEffect(() => {
+    if (!isLiveSyncing || !appData.syncInfo.syncCode) return;
+
+    const syncCode = appData.syncInfo.syncCode;
+    const unsubscribe = subscribeBabyDataFromFirebase(
+      syncCode,
+      (remoteData, meta) => {
+        // If this update was from our own push, ignore echo
+        if (meta.updatedAt && meta.updatedAt === lastProcessedRemoteUpdatedAtRef.current) {
+          return;
+        }
+        lastProcessedRemoteUpdatedAtRef.current = meta.updatedAt || null;
+
+        setAppData((current) => {
+          const currentVer = current.syncInfo?.version || 0;
+          const incomingVer = remoteData.syncInfo?.version || 0;
+
+          // If incoming version is equal or newer, update local store
+          if (incomingVer >= currentVer) {
+            showToast(`🔥 Firebase 即時收到家庭成員更新！`);
+            return {
+              ...remoteData,
+              syncInfo: {
+                ...remoteData.syncInfo,
+                firebaseConnected: true,
+                liveSyncEnabled: true,
+              },
+            };
+          }
+          return current;
+        });
+      },
+      (err) => {
+        console.warn('Firebase real-time listener notice:', err);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isLiveSyncing, appData.syncInfo.syncCode, showToast]);
+
+  // Push to Cloud Handler (Manual or auto)
   const handlePushSync = async () => {
     const res = await pushToCloud(appData);
     if (res.success) {
+      if (res.lastSyncedAt) {
+        lastProcessedRemoteUpdatedAtRef.current = res.lastSyncedAt;
+      }
       setAppData((prev) => ({
         ...prev,
         syncInfo: {
           ...prev.syncInfo,
           lastSyncedAt: res.lastSyncedAt || new Date().toISOString(),
           version: res.version || prev.syncInfo.version + 1,
+          firebaseConnected: true,
         },
       }));
-      showToast('☁️ 雲端同步備份成功！');
+      showToast('🔥 Firebase 雲端同步備份成功！');
     } else {
-      throw new Error(res.error || '雲端同步失敗');
+      throw new Error(res.error || 'Firebase 雲端同步失敗');
     }
   };
 
@@ -92,8 +144,9 @@ export default function App() {
   const handlePullSync = async (syncCode: string): Promise<boolean> => {
     const res = await pullFromCloud(syncCode);
     if (res.success && res.data) {
+      lastProcessedRemoteUpdatedAtRef.current = res.data.syncInfo?.lastSyncedAt || null;
       setAppData(res.data);
-      showToast(`☁️ 已成功載入雲端備份 (${syncCode})！`);
+      showToast(`🔥 已成功自 Firebase 載入最新資料 (${syncCode})！`);
       return true;
     }
     return false;
@@ -114,7 +167,7 @@ export default function App() {
   // Restore from File
   const handleRestoreFromFile = (importedData: AppDataStore) => {
     setAppData(importedData);
-    showToast('已從 JSON 檔案成功還原全部記錄！');
+    showToast('已成功還原全部記錄！');
   };
 
   // Profile Save
@@ -226,6 +279,8 @@ export default function App() {
       <Navbar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
+        syncCode={appData.syncInfo.syncCode}
+        onOpenCloudSync={() => setIsCloudSyncOpen(true)}
       />
 
       {/* Main Application Content Container */}
@@ -327,6 +382,8 @@ export default function App() {
         onPullSync={handlePullSync}
         onRestoreFromFile={handleRestoreFromFile}
         onUpdateSyncCode={handleUpdateSyncCode}
+        isLiveSyncing={isLiveSyncing}
+        onToggleLiveSync={setIsLiveSyncing}
       />
 
       {/* Pediatric Clinical Consultation PDF Report Modal */}

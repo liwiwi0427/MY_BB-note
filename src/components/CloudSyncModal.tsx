@@ -16,7 +16,10 @@ import {
   Share2,
   Sparkles,
   ArrowRight,
-  Info
+  Info,
+  Radio,
+  Zap,
+  Flame
 } from 'lucide-react';
 import { AppDataStore } from '../types';
 import { 
@@ -25,6 +28,7 @@ import {
   exportDataAsTransferCode,
   importDataFromTransferCode
 } from '../utils/storage';
+import { FIREBASE_PROJECT_INFO, testFirebaseConnection } from '../utils/firebase';
 
 interface CloudSyncModalProps {
   isOpen: boolean;
@@ -34,6 +38,8 @@ interface CloudSyncModalProps {
   onPullSync: (syncCode: string) => Promise<boolean>;
   onRestoreFromFile: (data: AppDataStore) => void;
   onUpdateSyncCode: (newCode: string) => void;
+  isLiveSyncing?: boolean;
+  onToggleLiveSync?: (enabled: boolean) => void;
 }
 
 export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
@@ -44,14 +50,17 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   onPullSync,
   onRestoreFromFile,
   onUpdateSyncCode,
+  isLiveSyncing = true,
+  onToggleLiveSync,
 }) => {
   const [inputSyncCode, setInputSyncCode] = useState('');
   const [inputTransferCode, setInputTransferCode] = useState('');
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedTransferCode, setCopiedTransferCode] = useState(false);
-  const [activeSyncTab, setActiveSyncTab] = useState<'cloud' | 'transfer' | 'file'>('cloud');
+  const [activeSyncTab, setActiveSyncTab] = useState<'firebase' | 'transfer' | 'file'>('firebase');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!isOpen) return null;
@@ -78,9 +87,9 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setMessage(null);
     try {
       await onPushSync();
-      setMessage({ type: 'success', text: '已成功將最新寶寶資料同步備份至雲端！(支援 GitHub & Vercel)' });
+      setMessage({ type: 'success', text: '🔥 已成功將最新寶寶資料即時同步至 Firebase Firestore！' });
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || '雲端同步失敗，您可使用「速傳碼」或「JSON匯出」進行跨裝置同步' });
+      setMessage({ type: 'error', text: err.message || 'Firebase 同步失敗，您可使用「速傳碼」或「JSON 備份」進行跨裝置同步' });
     } finally {
       setIsPushing(false);
     }
@@ -95,15 +104,32 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     try {
       const ok = await onPullSync(inputSyncCode.trim());
       if (ok) {
-        setMessage({ type: 'success', text: `成功從同步碼 ${inputSyncCode.toUpperCase()} 載入最新資料！` });
+        setMessage({ type: 'success', text: `🎉 成功從 Firebase 載入家庭同步碼【${inputSyncCode.toUpperCase()}】的最新資料！` });
         setInputSyncCode('');
       } else {
-        setMessage({ type: 'error', text: '找不到此同步碼的雲端資料。若於 GitHub/Vercel 部署，請使用「一鍵速傳碼」同步！' });
+        setMessage({ type: 'error', text: `找不到此同步碼的 Firebase 資料。請確認代碼是否輸入正確。` });
       }
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || '下載雲端備份失敗' });
+      setMessage({ type: 'error', text: err.message || '從 Firebase 下載備份失敗' });
     } finally {
       setIsPulling(false);
+    }
+  };
+
+  const handleTestFirebase = async () => {
+    setIsTesting(true);
+    setMessage(null);
+    try {
+      const res = await testFirebaseConnection();
+      if (res.ok) {
+        setMessage({ type: 'success', text: `✅ ${res.message}，專案代號 323118599069 通訊正常！` });
+      } else {
+        setMessage({ type: 'error', text: `❌ ${res.message}` });
+      }
+    } catch (e: any) {
+      setMessage({ type: 'error', text: `連線診斷失敗: ${e.message}` });
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -156,15 +182,20 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#EBE7DF]">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-              <Cloud className="w-5 h-5" strokeWidth={1.5} />
+            <div className="w-10 h-10 rounded-full bg-amber-600 text-white flex items-center justify-center shadow-xs">
+              <Flame className="w-5 h-5 fill-white text-amber-600" />
             </div>
             <div>
-              <h3 className="text-lg sm:text-xl font-serif font-bold text-[#2A2723]">
-                跨裝置同步與資料備份
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg sm:text-xl font-serif font-bold text-[#2A2723]">
+                  Firebase 雲端即時同步
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold">
+                  專案 {FIREBASE_PROJECT_INFO.projectNumber}
+                </span>
+              </div>
               <p className="text-xs text-[#8C8475] font-sans">
-                支援 GitHub Pages、Vercel 靜態站點與多手機無縫共享
+                Google Firebase Firestore 即時雙向多裝置雲端同步
               </p>
             </div>
           </div>
@@ -180,15 +211,15 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
         <div className="flex items-center bg-[#EBE7DF]/70 p-1 rounded-full text-xs font-medium font-sans">
           <button
             type="button"
-            onClick={() => setActiveSyncTab('cloud')}
+            onClick={() => setActiveSyncTab('firebase')}
             className={`flex-1 py-1.5 rounded-full transition-all text-center flex items-center justify-center gap-1.5 ${
-              activeSyncTab === 'cloud'
+              activeSyncTab === 'firebase'
                 ? 'bg-[#2A2723] text-white shadow-xs'
                 : 'text-[#6B6457] hover:text-[#2A2723]'
             }`}
           >
-            <Cloud className="w-3.5 h-3.5" />
-            <span>家庭同步碼</span>
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span>Firebase 同步</span>
           </button>
           <button
             type="button"
@@ -200,7 +231,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
             }`}
           >
             <Share2 className="w-3.5 h-3.5 text-amber-500" />
-            <span>一鍵速傳碼 (推薦)</span>
+            <span>一鍵速傳碼</span>
           </button>
           <button
             type="button"
@@ -234,9 +265,67 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           </div>
         )}
 
-        {/* TAB 1: CLOUD SYNC */}
-        {activeSyncTab === 'cloud' && (
-          <div className="space-y-4">
+        {/* TAB 1: FIREBASE CLOUD SYNC */}
+        {activeSyncTab === 'firebase' && (
+          <div className="space-y-4 font-sans">
+            
+            {/* Live Status Card */}
+            <div className="bg-white border border-[#EBE7DF] rounded-[24px] p-4.5 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs font-bold text-gray-900">
+                    Firebase Firestore 即時同步連線就緒
+                  </span>
+                </div>
+                <button
+                  onClick={handleTestFirebase}
+                  disabled={isTesting}
+                  className="text-[11px] font-medium text-amber-800 hover:text-amber-900 underline flex items-center gap-1 disabled:opacity-50"
+                >
+                  {isTesting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-amber-600" />}
+                  <span>連線診斷</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] bg-[#F9F6F0] p-2.5 rounded-xl border border-[#EBE7DF]">
+                <div>
+                  <span className="text-[#8C8475]">Firebase 專案：</span>
+                  <span className="font-mono text-[#2A2723] font-medium ml-1">{FIREBASE_PROJECT_INFO.projectId}</span>
+                </div>
+                <div>
+                  <span className="text-[#8C8475]">專案編號：</span>
+                  <span className="font-mono text-[#2A2723] font-medium ml-1">{FIREBASE_PROJECT_INFO.projectNumber}</span>
+                </div>
+              </div>
+
+              {/* Live sync auto-refresh note */}
+              <div className="flex items-center justify-between pt-1 border-t border-[#F2EDE4]">
+                <div className="flex items-center gap-2">
+                  <Radio className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                  <span className="text-xs font-medium text-[#4A453E]">即時雙向監聽 (Live Listener)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-medium">
+                    {isLiveSyncing ? '即時同步中' : '手動同步'}
+                  </span>
+                  {onToggleLiveSync && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleLiveSync(!isLiveSyncing)}
+                      className="text-[11px] text-[#8C8475] hover:text-[#2A2723] underline ml-1"
+                    >
+                      切換
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Family Sync Code Card */}
             <div className="bg-white border border-[#EBE7DF] rounded-[24px] p-5 space-y-3.5">
               <div className="flex items-center justify-between font-sans">
                 <span className="text-xs font-bold text-[#6B6457] flex items-center gap-1.5">
@@ -260,26 +349,26 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   className="px-4 py-2.5 bg-[#2A2723] hover:bg-[#3D3833] text-[#F9F6F0] font-sans rounded-full text-xs flex items-center gap-1.5 transition-colors shadow-xs"
                 >
                   {copiedCode ? <Check className="w-3.5 h-3.5 text-[#D9D1C2]" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedCode ? '已複製' : '複製'}</span>
+                  <span>{copiedCode ? '已複製' : '複製代碼'}</span>
                 </button>
               </div>
 
               <div className="flex items-center justify-between text-[11px] text-[#8C8475] font-sans">
                 <span>上次同步：{appData.syncInfo.lastSyncedAt ? new Date(appData.syncInfo.lastSyncedAt).toLocaleString('zh-TW') : '尚未同步'}</span>
-                <span className="font-mono text-[#2A2723] font-bold">v{appData.syncInfo.version}</span>
+                <span className="font-mono text-[#2A2723] font-bold">版本 v{appData.syncInfo.version}</span>
               </div>
 
               <button
                 onClick={handleManualPush}
                 disabled={isPushing}
-                className="w-full py-2.5 rounded-full bg-[#2A2723] hover:bg-[#3D3833] text-[#F9F6F0] font-sans text-xs flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                className="w-full py-2.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-sans text-xs flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 font-medium"
               >
                 {isPushing ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-[#D9D1C2]" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
                 ) : (
-                  <CloudCheck className="w-4 h-4 text-[#D9D1C2]" />
+                  <CloudCheck className="w-4 h-4 text-white" />
                 )}
-                <span>{isPushing ? '正在同步至雲端中繼...' : '立即上傳備份至雲端'}</span>
+                <span>{isPushing ? '正在同步至 Firebase Firestore...' : '立即上傳備份至 Firebase 雲端'}</span>
               </button>
             </div>
 
@@ -287,7 +376,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
             <div className="p-4 bg-[#F2EDE4] border border-[#D9D1C2] rounded-[24px] space-y-2.5 font-sans">
               <div className="text-xs font-bold text-[#4A453E] flex items-center gap-1.5">
                 <Smartphone className="w-4 h-4 text-[#8C8475]" />
-                <span>在另一台裝置輸入同步碼載入</span>
+                <span>在家人另一台手機輸入同步碼載入</span>
               </div>
 
               <form onSubmit={handleManualPull} className="flex items-center gap-2">
@@ -310,16 +399,16 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           </div>
         )}
 
-        {/* TAB 2: INSTANT TRANSFER CODE (100% RELIABLE FOR GITHUB PAGES & VERCEL) */}
+        {/* TAB 2: INSTANT TRANSFER CODE */}
         {activeSyncTab === 'transfer' && (
           <div className="space-y-4 font-sans text-xs">
             <div className="bg-white border border-[#EBE7DF] rounded-[24px] p-5 space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-gray-900">
                 <Share2 className="w-4 h-4 text-amber-600" />
-                <span>一鍵跨裝置速傳碼 (免伺服器，100% 穩定)</span>
+                <span>一鍵跨裝置速傳碼 (免網路/離線備份)</span>
               </div>
               <p className="text-[#6B6457] leading-relaxed">
-                特別為 <strong>GitHub Pages、Vercel 靜態部署與離線環境</strong> 設計！將全部寶寶醫療數據打包為一串安全速傳字串，一鍵複製並傳送至 LINE 或其他手機貼上即可。
+                將全部寶寶醫療數據打包為一串安全速傳字串，一鍵複製並傳送至 LINE 或其他通訊軟體貼上即可跨手機轉移。
               </p>
 
               <button
@@ -404,7 +493,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
         <div className="p-3 rounded-2xl bg-white border border-[#EBE7DF] text-[11px] text-[#8C8475] flex items-start gap-2">
           <Info className="w-3.5 h-3.5 text-[#8C8475] shrink-0 mt-0.5" />
           <p>
-            所有醫療數據均採用客戶端加密儲存，隱私不外洩。無論是 GitHub Pages、Vercel 或是手機瀏覽器，均可隨時透過速傳碼或雲端中繼進行無縫轉移。
+            數據已由 Google Firebase Firestore 專屬專案 (323118599069) 提供安全雲端儲存。任一家長手機輸入家庭同步碼即可開啟雙向即時連線。
           </p>
         </div>
 

@@ -5,7 +5,8 @@ import {
   Syringe, 
   FileHeart, 
   Sparkles,
-  Baby
+  Baby,
+  Flame
 } from 'lucide-react';
 
 export type TabType = 'diary' | 'growth' | 'vaccines' | 'medical' | 'tools';
@@ -13,11 +14,15 @@ export type TabType = 'diary' | 'growth' | 'vaccines' | 'medical' | 'tools';
 interface NavbarProps {
   activeTab: TabType;
   onSelectTab: (tab: TabType) => void;
+  syncCode?: string;
+  onOpenCloudSync?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
+  syncCode,
+  onOpenCloudSync,
 }) => {
   const navItems: { id: TabType; label: string; enLabel: string; icon: any; badge: string | null }[] = [
     { id: 'diary', label: '成長日常', enLabel: 'Journal', icon: BookHeart, badge: null },
@@ -55,35 +60,60 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Desktop Navigation Tabs */}
-          <nav className="hidden md:flex items-center space-x-1.5 bg-[#F2EDE4] p-1.5 rounded-full border border-[#EBE7DF]">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  id={`nav-tab-${item.id}`}
-                  onClick={() => onSelectTab(item.id)}
-                  className={`relative flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider transition-all duration-300 ${
-                    isActive
-                      ? 'bg-[#2A2723] text-[#F9F6F0] shadow-sm scale-[1.02]'
-                      : 'text-[#6B6457] hover:text-[#2A2723] hover:bg-[#E6DFD1]/60'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#D9D1C2]' : 'text-[#8C8475]'}`} strokeWidth={1.75} />
-                  <span className="font-medium">{item.label}</span>
-                  {item.badge && (
-                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full ${
-                      isActive ? 'bg-[#D9D1C2] text-[#2A2723]' : 'bg-[#D9D1C2]/60 text-[#4A453E]'
-                    }`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+          <div className="flex items-center gap-3">
+            {/* Firebase Live Cloud Sync Indicator Pill */}
+            {onOpenCloudSync && (
+              <button
+                type="button"
+                id="btn-navbar-firebase-sync"
+                onClick={onOpenCloudSync}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-950 text-xs font-sans transition-all shadow-2xs group"
+                title="Google Firebase 雲端同步 (專案編號: 323118599069)"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
+                <span className="font-medium hidden sm:inline">Firebase 同步</span>
+                {syncCode && (
+                  <span className="font-mono text-[10px] font-bold text-amber-800 bg-amber-200/60 px-1.5 py-0.2 rounded-md">
+                    {syncCode}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Desktop Navigation Tabs */}
+            <nav className="hidden md:flex items-center space-x-1.5 bg-[#F2EDE4] p-1.5 rounded-full border border-[#EBE7DF]">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`nav-tab-${item.id}`}
+                    onClick={() => onSelectTab(item.id)}
+                    className={`relative flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider transition-all duration-300 ${
+                      isActive
+                        ? 'bg-[#2A2723] text-[#F9F6F0] shadow-sm scale-[1.02]'
+                        : 'text-[#6B6457] hover:text-[#2A2723] hover:bg-[#E6DFD1]/60'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#D9D1C2]' : 'text-[#8C8475]'}`} strokeWidth={1.75} />
+                    <span className="font-medium">{item.label}</span>
+                    {item.badge && (
+                      <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full ${
+                        isActive ? 'bg-[#D9D1C2] text-[#2A2723]' : 'bg-[#D9D1C2]/60 text-[#4A453E]'
+                      }`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
         </div>
 
         {/* Mobile Navigation Bar */}

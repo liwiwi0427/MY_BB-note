@@ -1,6 +1,12 @@
 import { AppDataStore, GrowthRecord } from '../types';
 import { getInitialAppData } from '../data/defaultBabyData';
 import { calculatePercentile } from '../data/whoGrowthData';
+import { 
+  pushBabyDataToFirebase, 
+  pullBabyDataFromFirebase, 
+  subscribeBabyDataFromFirebase,
+  normalizeSyncCode 
+} from './firebase';
 
 const LOCAL_STORAGE_KEY = 'BABY_HEALTH_DIARY_APP_STATE_V2';
 
@@ -109,8 +115,8 @@ export function enrichGrowthRecordPercentiles(
 
 /**
  * Universal Push Backup
- * Attempts server endpoint first, then falls back to serverless cloud KV storage
- * for GitHub Pages & Vercel static deployments.
+ * Attempts Firebase Firestore first, then falls back to Express API,
+ * then relay/local storage.
  */
 export async function pushCloudBackup(
   data: AppDataStore
@@ -120,14 +126,31 @@ export async function pushCloudBackup(
   updatedAt?: string; 
   lastSyncedAt?: string; 
   version?: number; 
-  mode?: 'server' | 'relay' | 'local';
+  mode?: 'firebase' | 'server' | 'relay' | 'local';
   error?: string 
 }> {
-  const code = (data.syncInfo.syncCode || 'BABY-DEFAULT').trim().toUpperCase();
+  const code = normalizeSyncCode(data.syncInfo.syncCode || 'BABY-DEFAULT');
   const timestamp = new Date().toISOString();
   const newVersion = (data.syncInfo.version || 1) + 1;
 
-  // 1. Try local Express server / Cloud Run container API first
+  // 1. Prioritize Firebase Firestore (Real cloud database)
+  try {
+    const fbRes = await pushBabyDataToFirebase(code, data, data.syncInfo.deviceName);
+    if (fbRes.success) {
+      return {
+        success: true,
+        message: '已成功透過 Firebase 雲端資料庫完成即時同步備份！',
+        updatedAt: fbRes.updatedAt || timestamp,
+        lastSyncedAt: fbRes.updatedAt || timestamp,
+        version: fbRes.version || newVersion,
+        mode: 'firebase',
+      };
+    }
+  } catch (fbErr) {
+    console.warn('Firebase sync failed, falling back to local/server endpoint...', fbErr);
+  }
+
+  // 2. Fallback to local Express server / Cloud Run container API
   try {
     const response = await fetch('/api/sync/push', {
       method: 'POST',
@@ -154,8 +177,7 @@ export async function pushCloudBackup(
     console.warn('Local Express sync endpoint unavailable, attempting cloud relay fallback...', serverErr);
   }
 
-  // 2. Fallback for Static GitHub Pages & Vercel deployments:
-  // Using lightweight encrypted public KV relay or remote storage
+  // 3. Fallback for Static GitHub Pages & Vercel deployments
   try {
     const relayPayload = {
       syncCode: code,
@@ -164,7 +186,6 @@ export async function pushCloudBackup(
       babyData: data,
     };
 
-    // Store in browser indexed sync cache & public relay endpoint
     const fallbackResponse = await fetch(`https://api.restful-api.dev/objects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -177,7 +198,7 @@ export async function pushCloudBackup(
     if (fallbackResponse.ok) {
       return {
         success: true,
-        message: '已透過雲端中繼備份成功！(支援 GitHub & Vercel)',
+        message: '已透過雲端中繼備份成功！',
         updatedAt: timestamp,
         lastSyncedAt: timestamp,
         version: newVersion,
@@ -188,7 +209,7 @@ export async function pushCloudBackup(
     console.warn('Relay sync failed:', relayErr);
   }
 
-  // If network is completely offline, save locally
+  // 4. If network is completely offline, save locally
   saveStoredAppData(data);
   return {
     success: true,
@@ -204,14 +225,29 @@ export const pushToCloud = pushCloudBackup;
 
 /**
  * Universal Pull Backup
- * Attempts server endpoint first, then falls back to cloud relay and local storage
+ * Attempts Firebase Firestore first, then falls back to Express API,
+ * then relay/local storage.
  */
 export async function pullCloudBackup(
   syncCode: string
-): Promise<{ success: boolean; data?: AppDataStore; mode?: 'server' | 'relay' | 'code'; error?: string }> {
-  const code = syncCode.trim().toUpperCase();
+): Promise<{ success: boolean; data?: AppDataStore; mode?: 'firebase' | 'server' | 'relay' | 'code'; error?: string }> {
+  const code = normalizeSyncCode(syncCode);
 
-  // 1. Try local Express server / Cloud Run container API first
+  // 1. Prioritize Firebase Firestore
+  try {
+    const fbRes = await pullBabyDataFromFirebase(code);
+    if (fbRes.success && fbRes.data) {
+      return {
+        success: true,
+        data: fbRes.data,
+        mode: 'firebase',
+      };
+    }
+  } catch (fbErr) {
+    console.warn('Firebase pull failed, falling back...', fbErr);
+  }
+
+  // 2. Try local Express server / Cloud Run container API
   try {
     const response = await fetch(`/api/sync/pull/${encodeURIComponent(code)}`);
     if (response.ok) {
@@ -228,13 +264,12 @@ export async function pullCloudBackup(
     console.warn('Local Express pull endpoint unavailable, attempting relay...', serverErr);
   }
 
-  // 2. Try cloud relay fallback
+  // 3. Try cloud relay fallback
   try {
     const relayResponse = await fetch(`https://api.restful-api.dev/objects?name=BABY_SYNC_${encodeURIComponent(code)}`);
     if (relayResponse.ok) {
       const results = await relayResponse.json();
       if (Array.isArray(results) && results.length > 0) {
-        // Get the latest one
         const latest = results[results.length - 1];
         if (latest?.data?.babyData) {
           return {
@@ -251,11 +286,13 @@ export async function pullCloudBackup(
 
   return {
     success: false,
-    error: '找不到此同步碼的雲端資料。若部署在 GitHub/Vercel，建議使用「一鍵跨裝置速傳碼」或「匯入 JSON 檔案」秒速同步！',
+    error: `找不到同步碼【${code}】的雲端資料。請確認家庭同步碼是否正確，或使用「一鍵速傳碼」同步。`,
   };
 }
 
 export const pullFromCloud = pullCloudBackup;
+
+export { subscribeBabyDataFromFirebase };
 
 /**
  * Zero-Server Instant Transfer Code Generator (100% Reliable for GitHub Pages & Vercel)

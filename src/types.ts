@@ -143,6 +143,9 @@ export interface CloudSyncInfo {
   isSyncing: boolean;
   statusMessage: string;
   deviceName: string;
+  firebaseConnected?: boolean;
+  liveSyncEnabled?: boolean;
+  lastSyncProvider?: 'firebase' | 'server' | 'relay' | 'local';
 }
 
 export interface AppDataStore {
