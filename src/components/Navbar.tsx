@@ -168,38 +168,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           </div>
 
-          {/* Mobile Horizontal Top Quick Pills Bar (Swipeable on screens < md) */}
-          <div className="md:hidden flex items-center gap-1.5 py-2 px-0.5 border-t border-[#EBE7DF] overflow-x-auto no-scrollbar">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={`top-mobile-${item.id}`}
-                  onClick={() => onSelectTab(item.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-sans whitespace-nowrap transition-all duration-200 shrink-0 border ${
-                    isActive
-                      ? 'bg-[#2A2723] text-[#F9F6F0] border-[#2A2723] font-bold shadow-2xs'
-                      : 'bg-[#FAF8F5] text-[#6B6457] border-[#EBE7DF] hover:bg-[#F2EDE4]'
-                  }`}
-                >
-                  <Icon 
-                    className={`w-3.5 h-3.5 ${isActive ? item.activeIconTint : item.iconTint}`} 
-                    strokeWidth={isActive ? 2.2 : 1.8} 
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
         </div>
       </header>
 
-      {/* Mobile Ergonomic Fixed Bottom Navigation Bar */}
+      {/* Mobile Ergonomic Fixed Bottom Navigation Bar (Exclusive for mobile) */}
       <nav 
         aria-label="手機端底部快速導航"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#F9F6F0]/95 backdrop-blur-md border-t border-[#EBE7DF] px-2 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] flex items-center justify-around"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#F9F6F0]/95 backdrop-blur-md border-t border-[#EBE7DF] px-1.5 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_24px_rgba(0,0,0,0.08)] flex items-center justify-around"
       >
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -219,15 +194,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Icon Container with clear, high-contrast visual tile */}
               <div className={`p-1.5 rounded-xl transition-all flex items-center justify-center ${
                 isActive 
-                  ? 'bg-[#2A2723] shadow-xs scale-110' 
-                  : 'bg-[#EFEAE1] hover:bg-[#E6DFD1]'
+                  ? 'bg-[#2A2723] shadow-xs scale-105 ring-2 ring-[#2A2723]/10' 
+                  : 'bg-[#EFEAE1]/90 hover:bg-[#E6DFD1]'
               }`}>
                 <Icon 
                   className={`w-4 h-4 ${isActive ? item.activeIconTint : item.iconTint}`} 
                   strokeWidth={isActive ? 2.2 : 1.8} 
                 />
               </div>
-              <span className={`text-[10px] mt-0.5 tracking-tight ${
+              <span className={`text-[10px] mt-0.5 tracking-tight leading-tight ${
                 isActive ? 'font-bold text-[#2A2723]' : 'font-medium text-[#7A7367]'
               }`}>
                 {item.shortLabel}
