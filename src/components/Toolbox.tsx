@@ -44,6 +44,7 @@ interface ToolboxProps {
   onOpenPediatricReport: () => void;
   onOpenCloudSync: () => void;
   onAddDiaryEntry?: (entry: DiaryEntry) => void;
+  onDeleteDiaryEntry?: (id: string) => void;
 }
 
 type ActiveToolTab = 'totalio' | 'milk' | 'fever' | 'whitenoise' | 'wakewindow' | 'foodtracker';
@@ -60,6 +61,7 @@ export const Toolbox: React.FC<ToolboxProps> = ({
   onOpenPediatricReport,
   onOpenCloudSync,
   onAddDiaryEntry,
+  onDeleteDiaryEntry,
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveToolTab>('totalio');
 
@@ -549,6 +551,7 @@ export const Toolbox: React.FC<ToolboxProps> = ({
               growthRecords={growthRecords}
               diaryEntries={diaryEntries}
               onAddDiaryEntry={onAddDiaryEntry}
+              onDeleteDiaryEntry={onDeleteDiaryEntry}
             />
           </div>
         )}

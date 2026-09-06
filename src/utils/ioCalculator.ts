@@ -220,3 +220,116 @@ export function calculateDailyIO(
     },
   };
 }
+
+/**
+ * Check if a diary entry is an I/O related event (Intake or Output)
+ */
+export function isIOEntry(entry: DiaryEntry): boolean {
+  if (entry.category === 'feeding' || entry.category === 'diaper' || entry.category === 'io') return true;
+  if (
+    entry.metrics?.feedingAmountMl ||
+    entry.metrics?.waterAmountMl ||
+    entry.metrics?.feedingDurationMins ||
+    entry.metrics?.diaperType ||
+    entry.metrics?.diaperWetnessLevel ||
+    entry.metrics?.urineAmountMl ||
+    entry.metrics?.vomitSeverity ||
+    entry.metrics?.vomitMl
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export interface IOEntryDetail {
+  kind: 'intake' | 'output' | 'both';
+  intakeMl: number;
+  outputMl: number;
+  summaryText: string;
+  badgeLabel: string;
+  badgeColor: string;
+}
+
+/**
+ * Extract parsed I/O values and friendly badges for a specific entry
+ */
+export function getIOEntryDetail(entry: DiaryEntry): IOEntryDetail {
+  let intakeMl = 0;
+  let outputMl = 0;
+
+  // Intake calculation
+  if (entry.category === 'feeding' || entry.category === 'io' || entry.metrics?.feedingAmountMl || entry.metrics?.waterAmountMl) {
+    const feedingMl = entry.metrics?.feedingAmountMl || 0;
+    const duration = entry.metrics?.feedingDurationMins || 0;
+    const water = entry.metrics?.waterAmountMl || 0;
+    const type = entry.metrics?.feedingType;
+
+    let calculatedFeeding = feedingMl;
+    if (type === 'breast' && calculatedFeeding === 0 && duration > 0) {
+      calculatedFeeding = Math.round(duration * 3.5);
+    }
+    intakeMl = calculatedFeeding + water;
+  }
+
+  // Output calculation
+  if (entry.category === 'diaper' || entry.category === 'io' || entry.metrics?.diaperType || entry.metrics?.vomitSeverity || entry.metrics?.vomitMl) {
+    const diaperType = entry.metrics?.diaperType;
+    const wetness = entry.metrics?.diaperWetnessLevel;
+    const urineMl = estimateUrineMl(wetness, diaperType, entry.metrics?.urineAmountMl);
+    const vomitMl = estimateVomitMl(entry.metrics?.vomitSeverity, entry.metrics?.vomitMl);
+    outputMl = urineMl + vomitMl;
+  }
+
+  if (intakeMl > 0 && outputMl > 0) {
+    return {
+      kind: 'both',
+      intakeMl,
+      outputMl,
+      summaryText: `攝入 +${intakeMl}ml / 排出 -${outputMl}ml`,
+      badgeLabel: '進食與排泄',
+      badgeColor: 'bg-purple-50 text-purple-800 border-purple-200',
+    };
+  }
+
+  if (intakeMl > 0) {
+    return {
+      kind: 'intake',
+      intakeMl,
+      outputMl: 0,
+      summaryText: `攝入 +${intakeMl} ml`,
+      badgeLabel: entry.metrics?.feedingType === 'breast' ? '親餵母乳' : entry.metrics?.feedingType === 'water' ? '補充水分' : '配方奶',
+      badgeColor: 'bg-sky-50 text-sky-800 border-sky-200',
+    };
+  }
+
+  return {
+    kind: 'output',
+    intakeMl: 0,
+    outputMl,
+    summaryText: `排出 -${outputMl} ml`,
+    badgeLabel: entry.metrics?.vomitSeverity ? '溢奶/吐奶' : '換尿布排泄',
+    badgeColor: 'bg-amber-50 text-amber-800 border-amber-200',
+  };
+}
+
+/**
+ * Get distinct dates with I/O records
+ */
+export function getAvailableIODates(entries: DiaryEntry[]): { date: string; intakeMl: number; outputMl: number; count: number }[] {
+  const ioEntries = entries.filter(isIOEntry);
+  const dateMap = new Map<string, { intakeMl: number; outputMl: number; count: number }>();
+
+  ioEntries.forEach((entry) => {
+    const detail = getIOEntryDetail(entry);
+    const curr = dateMap.get(entry.date) || { intakeMl: 0, outputMl: 0, count: 0 };
+    dateMap.set(entry.date, {
+      intakeMl: curr.intakeMl + detail.intakeMl,
+      outputMl: curr.outputMl + detail.outputMl,
+      count: curr.count + 1,
+    });
+  });
+
+  return Array.from(dateMap.entries())
+    .map(([date, data]) => ({ date, ...data }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}

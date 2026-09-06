@@ -18,7 +18,9 @@ import {
   Layers,
   Droplets,
   Activity,
-  ArrowRight
+  ArrowRight,
+  Search,
+  X
 } from 'lucide-react';
 import { BabyProfile, DiaryCategory, DiaryEntry, BabyMood } from '../types';
 import { calculateDailyIO } from '../utils/ioCalculator';
@@ -41,6 +43,7 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
   onOpenTotalIO,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   // Today's Date String
@@ -53,17 +56,83 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
   }, [diaryEntries, todayStr, babyProfile.birthWeight]);
 
   // Sorted entries by date & time desc
-  const sortedEntries = [...diaryEntries].sort((a, b) => {
-    const timeA = new Date(`${a.date}T${a.time || '12:00'}`).getTime();
-    const timeB = new Date(`${b.date}T${b.time || '12:00'}`).getTime();
-    return timeB - timeA;
-  });
+  const sortedEntries = useMemo(() => {
+    return [...diaryEntries].sort((a, b) => {
+      const timeA = new Date(`${a.date}T${a.time || '12:00'}`).getTime();
+      const timeB = new Date(`${b.date}T${b.time || '12:00'}`).getTime();
+      return timeB - timeA;
+    });
+  }, [diaryEntries]);
 
-  const filteredEntries = sortedEntries.filter((entry) => {
-    if (selectedCategory === 'all') return true;
-    if (selectedCategory === 'milestone') return entry.category === 'milestone' || !!entry.milestoneTag;
-    return entry.category === selectedCategory;
-  });
+  // Combined Filter: Category + Keyword Search
+  const filteredEntries = useMemo(() => {
+    return sortedEntries.filter((entry) => {
+      // 1. Category Filter
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'milestone') {
+          if (entry.category !== 'milestone' && !entry.milestoneTag) return false;
+        } else if (entry.category !== selectedCategory) {
+          return false;
+        }
+      }
+
+      // 2. Keyword Search Filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        
+        // Exact text match in title, content, author, tags, milestoneTag, date
+        const matchesText = 
+          entry.title.toLowerCase().includes(q) ||
+          entry.content.toLowerCase().includes(q) ||
+          (entry.author && entry.author.toLowerCase().includes(q)) ||
+          (entry.milestoneTag && entry.milestoneTag.toLowerCase().includes(q)) ||
+          (entry.tags && entry.tags.some((t) => t.toLowerCase().includes(q))) ||
+          entry.date.includes(q);
+
+        if (matchesText) return true;
+
+        // Semantic keyword matches for common baby terms
+        const isFeedingTerm = q.includes('奶') || q.includes('餵') || q.includes('母乳') || q.includes('配方');
+        if (isFeedingTerm && (entry.category === 'feeding' || (entry.metrics?.feedingAmountMl ?? 0) > 0 || !!entry.metrics?.feedingType)) {
+          return true;
+        }
+
+        const isFeverTerm = q.includes('燒') || q.includes('溫') || q.includes('熱') || q.includes('度');
+        if (isFeverTerm && (entry.category === 'temperature' || (entry.metrics?.temperature ?? 0) > 0)) {
+          return true;
+        }
+
+        const isVaccineTerm = q.includes('疫苗') || q.includes('打針') || q.includes('接種') || q.includes('預防針');
+        if (isVaccineTerm && (entry.category === 'medical' || entry.title.includes('疫苗') || entry.content.includes('疫苗'))) {
+          return true;
+        }
+
+        const isDiaperTerm = q.includes('尿') || q.includes('便') || q.includes('布') || q.includes('屎');
+        if (isDiaperTerm && (entry.category === 'diaper' || !!entry.metrics?.diaperType)) {
+          return true;
+        }
+
+        const isSleepTerm = q.includes('睡') || q.includes('眠') || q.includes('醒');
+        if (isSleepTerm && (entry.category === 'sleep' || (entry.metrics?.sleepDurationMins ?? 0) > 0)) {
+          return true;
+        }
+
+        const isFoodTerm = q.includes('副食') || q.includes('泥') || q.includes('粥') || q.includes('米糊');
+        if (isFoodTerm && (entry.metrics?.feedingType === 'solid' || entry.title.includes('副食') || entry.content.includes('副食'))) {
+          return true;
+        }
+
+        const isIOTerm = q.includes('io') || q.includes('i/o') || q.includes('水分') || q.includes('攝入') || q.includes('排出');
+        if (isIOTerm && (entry.category === 'io' || entry.category === 'feeding' || entry.category === 'diaper')) {
+          return true;
+        }
+
+        return false;
+      }
+
+      return true;
+    });
+  }, [sortedEntries, selectedCategory, searchQuery]);
 
   const moodEmojis: Record<BabyMood, { emoji: string; label: string; bg: string }> = {
     happy: { emoji: '😊', label: '心情極佳', bg: 'bg-[#F2EDE4] text-[#2A2723] border border-[#D9D1C2]' },
@@ -85,11 +154,23 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
     io: { label: '💧 Total I/O', color: 'bg-sky-50 text-sky-800 border-sky-200' },
   };
 
+  // Preset keywords requested by user
+  const quickSearchKeywords = [
+    { label: '🍼 奶量', query: '奶量' },
+    { label: '🌡️ 發燒', query: '發燒' },
+    { label: '💉 疫苗', query: '疫苗' },
+    { label: '🧻 換尿布', query: '換尿布' },
+    { label: '🌟 里程碑', query: '里程碑' },
+    { label: '🥣 副食品', query: '副食品' },
+    { label: '💤 小睡', query: '睡眠' },
+    { label: '💧 Total I/O', query: 'Total I/O' },
+  ];
+
   return (
     <div className="space-y-8">
       
       {/* Top Controls & Quick Routine Logger Header */}
-      <div className="bg-white rounded-[36px] p-6 sm:p-8 border border-[#EBE7DF] shadow-xs">
+      <div className="bg-white rounded-[26px] sm:rounded-[36px] p-4 sm:p-8 border border-[#EBE7DF] shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-[#EBE7DF]">
           <div>
             <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#2A2723]">
@@ -108,6 +189,72 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
             <Plus className="w-4 h-4" />
             <span>寫一篇新日記</span>
           </button>
+        </div>
+
+        {/* SEARCH BAR (Added at the top of DiaryJournal as requested) */}
+        <div className="mt-6 p-4 rounded-[26px] bg-[#FAF8F5] border border-[#EBE7DF] space-y-3">
+          <div className="relative flex items-center">
+            <Search className="w-4 h-4 text-[#8C8475] absolute left-3.5 pointer-events-none" />
+            <input
+              id="diary-search-input"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜尋日記關鍵字（例：奶量、疫苗、發燒、翻身、換尿布、副食品...）"
+              className="w-full pl-10 pr-10 py-2.5 bg-white rounded-full border border-[#D9D1C2] focus:border-[#2A2723] focus:ring-1 focus:ring-[#2A2723] text-xs font-sans text-[#2A2723] placeholder-[#A69D8D] outline-none transition-all shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 p-1 rounded-full text-[#8C8475] hover:text-[#2A2723] hover:bg-[#F2EDE4] transition-colors"
+                title="清除搜尋"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Keyword Chips */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            <span className="text-[11px] text-[#8C8475] font-sans mr-1">快捷搜尋：</span>
+            {quickSearchKeywords.map((item) => {
+              const isSelected = searchQuery.toLowerCase() === item.query.toLowerCase();
+              return (
+                <button
+                  key={item.query}
+                  type="button"
+                  onClick={() => setSearchQuery(isSelected ? '' : item.query)}
+                  className={`px-3 py-1 rounded-full text-[11px] font-sans transition-all duration-200 border ${
+                    isSelected
+                      ? 'bg-[#2A2723] text-[#F9F6F0] border-[#2A2723] shadow-2xs'
+                      : 'bg-white text-[#5C5549] border-[#E0DBD1] hover:bg-[#F2EDE4] hover:text-[#2A2723]'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-[11px] text-rose-700 hover:text-rose-900 underline ml-2 font-sans"
+              >
+                重設搜尋
+              </button>
+            )}
+          </div>
+
+          {/* Search Result Counter Tag */}
+          {searchQuery && (
+            <div className="text-[11px] text-[#6B6457] font-sans flex items-center justify-between pt-1 border-t border-[#EBE7DF]">
+              <span>
+                關鍵字「<strong className="text-[#2A2723] font-medium">{searchQuery}</strong>」篩選結果：共找到 <strong className="text-[#2A2723] font-bold">{filteredEntries.length}</strong> 則日記
+              </span>
+              <span className="text-[#8C8475]">（點擊右上叉叉或重設可返回全部）</span>
+            </div>
+          )}
         </div>
 
         {/* Quick Routine Shortcut Bar */}
@@ -158,16 +305,22 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
         </div>
 
         {/* TODAY TOTAL I/O QUICK WIDGET BAR */}
-        <div className="mt-5 p-4 rounded-[24px] bg-gradient-to-r from-sky-50/90 via-sky-50/50 to-amber-50/60 border border-sky-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
+        <div 
+          onClick={onOpenTotalIO}
+          className="mt-5 p-4 rounded-[24px] bg-gradient-to-r from-sky-50/90 via-sky-50/50 to-amber-50/60 border border-sky-200/80 hover:border-sky-300 transition-all cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans shadow-2xs"
+        >
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-sky-100 text-sky-800 shrink-0">
+            <div className="p-2 rounded-xl bg-sky-100 text-sky-800 shrink-0 group-hover:scale-105 transition-transform">
               <Droplets className="w-4 h-4" />
             </div>
             <div>
-              <div className="font-bold text-[#2A2723] flex items-center gap-2">
+              <div className="font-bold text-[#2A2723] flex items-center gap-2 flex-wrap">
                 <span>今日 24h Total I/O 即時概況</span>
                 <span className={`text-[10px] font-medium px-2 py-0.2 rounded-full border ${todayIO.hydrationStatusColor}`}>
                   {todayIO.hydrationStatusLabel}
+                </span>
+                <span className="text-[10px] text-sky-700 bg-sky-100/60 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                  查看完整 I/O 監測專區 <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                 </span>
               </div>
               <div className="text-[11px] text-[#6B6457] mt-0.5 flex items-center gap-3 flex-wrap">
@@ -211,16 +364,30 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
       {filteredEntries.length === 0 ? (
         <div className="bg-white rounded-[36px] p-12 text-center border border-[#EBE7DF] shadow-xs">
           <BookHeart className="w-12 h-12 text-[#D9D1C2] mx-auto mb-3" strokeWidth={1.25} />
-          <h3 className="text-xl font-serif italic text-[#2A2723]">此分類尚無日記記錄</h3>
+          <h3 className="text-xl font-serif italic text-[#2A2723]">
+            {searchQuery ? `找不到與「${searchQuery}」相關的日記` : '此分類尚無日記記錄'}
+          </h3>
           <p className="text-xs text-[#8C8475] mt-1 max-w-sm mx-auto font-sans">
-            點擊上方「寫一篇新日記」或快速記錄按鈕，隨手記錄寶寶的可愛日常與重要里程碑！
+            {searchQuery 
+              ? '建議嘗試其他關鍵字（如：奶量、發燒、疫苗、換尿布），或點擊下方按鈕清除搜尋。'
+              : '點擊上方「寫一篇新日記」或快速記錄按鈕，隨手記錄寶寶的可愛日常與重要里程碑！'}
           </p>
-          <button
-            onClick={onAddDiary}
-            className="mt-6 px-6 py-2.5 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-sans uppercase tracking-wider hover:bg-[#3D3833]"
-          >
-            立即寫日記
-          </button>
+          <div className="flex items-center justify-center gap-3 mt-6">
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="px-5 py-2.5 rounded-full bg-[#F2EDE4] text-[#2A2723] text-xs font-sans font-medium hover:bg-[#E6DFD1] transition-all"
+              >
+                清除關鍵字搜尋
+              </button>
+            )}
+            <button
+              onClick={onAddDiary}
+              className="px-6 py-2.5 rounded-full bg-[#2A2723] text-[#F9F6F0] text-xs font-sans uppercase tracking-wider hover:bg-[#3D3833]"
+            >
+              立即寫日記
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-5">
@@ -231,7 +398,7 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
             return (
               <article
                 key={entry.id}
-                className="bg-white rounded-[32px] p-6 sm:p-7 border border-[#EBE7DF] hover:border-[#D1CEC4] shadow-xs transition-all duration-300 group"
+                className="bg-white rounded-[24px] sm:rounded-[32px] p-4 sm:p-7 border border-[#EBE7DF] hover:border-[#D1CEC4] shadow-xs transition-all duration-300 group"
               >
                 {/* Entry Header Ribbon */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F2EDE4]">

@@ -15,6 +15,7 @@ import { AddDiaryModal } from './components/AddDiaryModal';
 import { AddMedicalVisitModal } from './components/AddMedicalVisitModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { Toolbox } from './components/Toolbox';
+import { TotalIOTracker } from './components/TotalIOTracker';
 
 import { 
   AppDataStore, 
@@ -284,7 +285,7 @@ export default function App() {
       />
 
       {/* Main Application Content Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-28 md:pb-8">
         
         {/* Baby Profile & Quick Status Header (Visible on all views) */}
         <BabyHeader
@@ -308,7 +309,18 @@ export default function App() {
             }}
             onQuickLog={handleQuickLog}
             onDeleteDiary={handleDeleteDiaryEntry}
-            onOpenTotalIO={() => setActiveTab('tools')}
+            onOpenTotalIO={() => setActiveTab('io')}
+          />
+        )}
+
+        {activeTab === 'io' && (
+          <TotalIOTracker
+            babyProfile={appData.babyProfile}
+            growthRecords={appData.growthRecords}
+            diaryEntries={appData.diaryEntries}
+            onAddDiaryEntry={handleAddDiaryEntry}
+            onDeleteDiaryEntry={handleDeleteDiaryEntry}
+            onQuickLogCategory={handleQuickLog}
           />
         )}
 
@@ -352,6 +364,7 @@ export default function App() {
             onOpenPediatricReport={() => setIsReportOpen(true)}
             onOpenCloudSync={() => setIsCloudSyncOpen(true)}
             onAddDiaryEntry={handleAddDiaryEntry}
+            onDeleteDiaryEntry={handleDeleteDiaryEntry}
           />
         )}
 

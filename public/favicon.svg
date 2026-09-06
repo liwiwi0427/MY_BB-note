@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Background with subtle warm gradient and rounded corner -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3D3833"/>
+      <stop offset="100%" stop-color="#201E1B"/>
+    </linearGradient>
+    <linearGradient id="heartGrad" x1="20" y1="20" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F28B82"/>
+      <stop offset="100%" stop-color="#E06D63"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFE0B2"/>
+      <stop offset="100%" stop-color="#E6C8A0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Container Base -->
+  <rect width="64" height="64" rx="16" fill="url(#bgGrad)"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="#5A5349" stroke-width="1.5" stroke-opacity="0.5"/>
+
+  <!-- Baby Face / Sleeping Head -->
+  <circle cx="32" cy="31" r="18" fill="url(#glowGrad)"/>
+  
+  <!-- Baby Cheeks & Glow -->
+  <ellipse cx="23" cy="33" rx="3" ry="1.8" fill="#F8B4B4" opacity="0.6"/>
+  <ellipse cx="41" cy="33" rx="3" ry="1.8" fill="#F8B4B4" opacity="0.6"/>
+
+  <!-- Cute Closed Happy Sleeping Eyes -->
+  <path d="M23 28 C25 31 27 31 29 28" stroke="#4A3B32" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M35 28 C37 31 39 31 41 28" stroke="#4A3B32" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+  <!-- Soft Gentle Smile -->
+  <path d="M29 36 C31 38 33 38 35 36" stroke="#4A3B32" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+
+  <!-- Cute Baby Top Curl / Hair Tuft -->
+  <path d="M32 13 C32 10 35 9 36 11 C37 13 34 14 32 13" stroke="#4A3B32" stroke-width="2" stroke-linecap="round" fill="#4A3B32"/>
+
+  <!-- Small Tender Heart Accent Badge -->
+  <path d="M48 40 C48 37 45 35 43 37 C41 35 38 37 38 40 C38 43 43 47 43 47 C43 47 48 43 48 40 Z" fill="url(#heartGrad)"/>
+</svg>
