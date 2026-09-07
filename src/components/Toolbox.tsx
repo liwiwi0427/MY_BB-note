@@ -28,7 +28,9 @@ import {
   RotateCcw,
   Sliders,
   BellRing,
-  Droplets
+  Droplets,
+  Users,
+  FileSpreadsheet
 } from 'lucide-react';
 import { audioSynthesizer, SoundType } from '../utils/audioSynthesizer';
 import { FOOD_DATABASE, FoodCategory, FoodTrialStatus, FoodItem } from '../data/foodAllergenData';
@@ -43,6 +45,7 @@ interface ToolboxProps {
   syncInfo: CloudSyncInfo;
   onOpenPediatricReport: () => void;
   onOpenCloudSync: () => void;
+  onOpenFamilyGroup?: () => void;
   onAddDiaryEntry?: (entry: DiaryEntry) => void;
   onDeleteDiaryEntry?: (id: string) => void;
 }
@@ -60,6 +63,7 @@ export const Toolbox: React.FC<ToolboxProps> = ({
   syncInfo,
   onOpenPediatricReport,
   onOpenCloudSync,
+  onOpenFamilyGroup,
   onAddDiaryEntry,
   onDeleteDiaryEntry,
 }) => {
@@ -403,81 +407,117 @@ export const Toolbox: React.FC<ToolboxProps> = ({
   return (
     <div className="space-y-8 animate-fadeIn">
       
-      {/* SECTION 1: TOP CORE MANAGEMENT & EXPORT CARDS (Prominently moved to Toolbox) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* SECTION 1: TOP CORE MANAGEMENT & EXPORT CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
         
-        {/* PDF Clinical Report Card */}
-        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-[#EBE7DF] shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-[#D9D1C2] transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#F9F6F0] rounded-bl-full -mr-6 -mt-6 pointer-events-none opacity-60"></div>
+        {/* PDF & Excel Clinical Report Card */}
+        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-[#EBE7DF] shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-[#D9D1C2] transition-all">
+          <div className="absolute top-0 right-0 w-28 h-28 bg-[#F9F6F0] rounded-bl-full -mr-6 -mt-6 pointer-events-none opacity-60"></div>
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#8C8475] bg-[#F2EDE4] px-3 py-1 rounded-full border border-[#D9D1C2] flex items-center gap-1.5">
+              <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#8C8475] bg-[#F2EDE4] px-2.5 py-0.5 rounded-full border border-[#D9D1C2] flex items-center gap-1.5">
                 <FileText className="w-3 h-3 text-[#2A2723]" />
-                兒科門診專用
+                兒科門診就診
               </span>
-              <span className="text-xs font-mono font-bold text-[#8C8475]">PDF PRINTABLE</span>
+              <span className="text-[10px] font-mono font-bold text-[#8C8475]">PDF & EXCEL</span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#2A2723]">
-              匯出兒科就診專用報告
+            <h3 className="text-lg sm:text-xl font-serif font-bold text-[#2A2723]">
+              就診報告與 I/O 匯出
             </h3>
-            <p className="text-xs sm:text-sm text-[#6B6457] mt-2 font-sans leading-relaxed">
-              一鍵彙整寶寶最新 WHO 生長百分位、未接種疫苗時程、近期就診診斷用藥與體溫紀錄，並支援看診自訂提問清單。
+            <p className="text-xs text-[#6B6457] mt-1.5 font-sans leading-relaxed">
+              自選常用區間 (一週、三週、一個月、三個月、半年) 列印純淨醫師就醫摘要，或匯出 I/O 與生命徵象 Excel。
             </p>
           </div>
 
-          <div className="pt-6 mt-4 border-t border-[#F2EDE4] flex items-center justify-between">
-            <span className="text-xs text-[#8C8475] font-sans">
-              支援一鍵另存 PDF / A4 醫療排版
+          <div className="pt-4 mt-3 border-t border-[#F2EDE4] flex items-center justify-between">
+            <span className="text-[11px] text-[#8C8475] font-sans">
+              純淨就醫版面
             </span>
             <button
               id="toolbox-open-report-btn"
               onClick={onOpenPediatricReport}
-              className="px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] transition-all shadow-sm flex items-center gap-2 active:scale-95"
+              className="px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] transition-all shadow-xs flex items-center gap-1.5 active:scale-95 font-bold"
             >
               <FileText className="w-3.5 h-3.5 text-[#D9D1C2]" />
-              <span>開啟就醫報告</span>
+              <span>開啟報告</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Family Group Management & Monthly Excel Export Card */}
+        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-[#D5DDD5] shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-[#B5C4B5] transition-all bg-gradient-to-br from-white via-white to-[#F2F6F2]">
+          <div className="absolute top-0 right-0 w-28 h-28 bg-[#E6EBE6] rounded-bl-full -mr-6 -mt-6 pointer-events-none opacity-60"></div>
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#3E4A3E] bg-[#E6EBE6] px-2.5 py-0.5 rounded-full border border-[#D5DDD5] flex items-center gap-1.5 font-bold">
+                <Users className="w-3 h-3 text-emerald-800" />
+                家庭管理員專用
+              </span>
+              <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                .XLSX 輸出
+              </span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-serif font-bold text-[#2A2723]">
+              家庭群組與每月檔案輸出
+            </h3>
+            <p className="text-xs text-[#6B6457] mt-1.5 font-sans leading-relaxed">
+              管理員可每個月輸出並下載所有當月及過去 1 個月記錄至本機，已完成精緻排版，所有資料一字不漏！
+            </p>
+          </div>
+
+          <div className="pt-4 mt-3 border-t border-[#D5DDD5] flex items-center justify-between">
+            <span className="text-[11px] text-emerald-800 font-sans font-medium">
+              自動優化試算表欄寬
+            </span>
+            <button
+              id="toolbox-open-family-group-btn"
+              onClick={onOpenFamilyGroup}
+              className="px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider bg-emerald-800 text-white hover:bg-emerald-900 transition-all shadow-xs flex items-center gap-1.5 active:scale-95 font-bold"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+              <span>群組與輸出</span>
             </button>
           </div>
         </div>
 
         {/* Cloud Sync & Backup Card */}
-        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-[#EBE7DF] shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-[#D9D1C2] transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#E6E9F2]/50 rounded-bl-full -mr-6 -mt-6 pointer-events-none opacity-60"></div>
+        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-[#EBE7DF] shadow-xs flex flex-col justify-between relative overflow-hidden group hover:border-[#D9D1C2] transition-all">
+          <div className="absolute top-0 right-0 w-28 h-28 bg-[#E6E9F2]/50 rounded-bl-full -mr-6 -mt-6 pointer-events-none opacity-60"></div>
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#3A4050] bg-[#E6E9F2] px-3 py-1 rounded-full border border-[#D5D9E6] flex items-center gap-1.5">
+              <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-[#3A4050] bg-[#E6E9F2] px-2.5 py-0.5 rounded-full border border-[#D5D9E6] flex items-center gap-1.5">
                 <Cloud className="w-3 h-3 text-[#3A4050]" />
-                家庭多裝置同步
+                雲端多裝置
               </span>
-              <div className="flex items-center gap-1.5 text-xs font-sans text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              <div className="flex items-center gap-1.5 text-xs font-sans text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span>同步就緒</span>
+                <span className="text-[11px]">同步中</span>
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#2A2723]">
-                家庭雲端同步碼
+              <h3 className="text-lg sm:text-xl font-serif font-bold text-[#2A2723]">
+                家庭同步碼
               </h3>
-              <span className="text-lg font-mono font-bold text-[#2A2723] bg-[#F2EDE4] px-2.5 py-0.5 rounded-lg border border-[#D9D1C2]">
+              <span className="text-sm font-mono font-bold text-[#2A2723] bg-[#F2EDE4] px-2 py-0.5 rounded border border-[#D9D1C2]">
                 {syncInfo.syncCode}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-[#6B6457] mt-2 font-sans leading-relaxed">
-              爸爸媽媽或保母可在不同手機輸入相同的 6 位數同步碼，隨時即時備份與跨裝置無縫讀取所有成長紀錄。
+            <p className="text-xs text-[#6B6457] mt-1.5 font-sans leading-relaxed">
+              爸爸媽媽或保母在各自手機輸入相同同步碼，即時雙向備份與跨裝置無縫同步讀取。
             </p>
           </div>
 
-          <div className="pt-6 mt-4 border-t border-[#F2EDE4] flex items-center justify-between">
+          <div className="pt-4 mt-3 border-t border-[#F2EDE4] flex items-center justify-between">
             <span className="text-[11px] text-[#8C8475] font-sans">
-              上次備份：<span className="font-mono text-[#6B6457]">{syncInfo.lastSyncedAt ? new Date(syncInfo.lastSyncedAt).toLocaleString('zh-TW', { hour12: false, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '尚未手動備份'}</span>
+              即時雙向雲端備份
             </span>
             <button
               id="toolbox-open-sync-btn"
               onClick={onOpenCloudSync}
-              className="px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#F2EDE4] hover:bg-[#E6DFD1] text-[#2A2723] border border-[#D9D1C2] transition-all flex items-center gap-2 active:scale-95"
+              className="px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider bg-[#F2EDE4] hover:bg-[#E6DFD1] text-[#2A2723] border border-[#D9D1C2] transition-all flex items-center gap-1.5 active:scale-95 font-bold"
             >
               <Cloud className="w-3.5 h-3.5 text-[#6B6457]" />
-              <span>同步與備份設定</span>
+              <span>同步設定</span>
             </button>
           </div>
         </div>

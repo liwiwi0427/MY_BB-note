@@ -38,8 +38,10 @@ import {
   ListFilter,
   Check,
   Layers,
-  Baby
+  Baby,
+  FileSpreadsheet
 } from 'lucide-react';
+import { IORangeExportModal } from './IORangeExportModal';
 
 interface TotalIOTrackerProps {
   babyProfile: BabyProfile;
@@ -48,6 +50,7 @@ interface TotalIOTrackerProps {
   onAddDiaryEntry?: (entry: DiaryEntry) => void;
   onDeleteDiaryEntry?: (id: string) => void;
   onQuickLogCategory?: (category: any) => void;
+  onOpenPediatricReport?: (days?: number) => void;
 }
 
 export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
@@ -57,6 +60,7 @@ export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
   onAddDiaryEntry,
   onDeleteDiaryEntry,
   onQuickLogCategory,
+  onOpenPediatricReport,
 }) => {
   // Current selected date for calendar tracking (default: today YYYY-MM-DD)
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -64,6 +68,9 @@ export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
 
   // Active view tab: 'day' for selected day analysis & details, 'all' for all I/O records history
   const [activeViewMode, setActiveViewMode] = useState<'day' | 'all'>('day');
+
+  // Modal for range export and print
+  const [isRangeExportOpen, setIsRangeExportOpen] = useState(false);
 
   // Filter & Search inside "All I/O records" tab
   const [allSearchQuery, setAllSearchQuery] = useState<string>('');
@@ -366,29 +373,42 @@ export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
             </div>
           </div>
 
-          {/* Primary View Mode Switcher: Selected Day vs All Records */}
-          <div className="flex items-center gap-1 sm:gap-2 bg-[#F2EDE4] p-1 rounded-full border border-[#D9D1C2] w-full sm:w-auto">
+          {/* Primary View Mode Switcher & Range Export Button */}
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            <div className="flex items-center gap-1 sm:gap-2 bg-[#F2EDE4] p-1 rounded-full border border-[#D9D1C2] flex-1 sm:flex-initial">
+              <button
+                onClick={() => setActiveViewMode('day')}
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-sans transition-all ${
+                  activeViewMode === 'day'
+                    ? 'bg-[#2A2723] text-[#F9F6F0] font-bold shadow-xs'
+                    : 'text-[#6B6457] hover:text-[#2A2723]'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>當日日曆分析</span>
+              </button>
+              <button
+                onClick={() => setActiveViewMode('all')}
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-sans transition-all ${
+                  activeViewMode === 'all'
+                    ? 'bg-[#2A2723] text-[#F9F6F0] font-bold shadow-xs'
+                    : 'text-[#6B6457] hover:text-[#2A2723]'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>全部記錄 ({allIOEntries.length})</span>
+              </button>
+            </div>
+
+            {/* Range Export & Print Trigger Button */}
             <button
-              onClick={() => setActiveViewMode('day')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-sans transition-all ${
-                activeViewMode === 'day'
-                  ? 'bg-[#2A2723] text-[#F9F6F0] font-bold shadow-xs'
-                  : 'text-[#6B6457] hover:text-[#2A2723]'
-              }`}
+              type="button"
+              onClick={() => setIsRangeExportOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-sans font-bold bg-emerald-800 text-white hover:bg-emerald-900 transition-all shadow-xs shrink-0"
+              title="選擇常用區間 (一週/三週/一個月/三個月/半年) 並匯出 Excel (.xlsx) 或列印"
             >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>當日日曆分析</span>
-            </button>
-            <button
-              onClick={() => setActiveViewMode('all')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs font-sans transition-all ${
-                activeViewMode === 'all'
-                  ? 'bg-[#2A2723] text-[#F9F6F0] font-bold shadow-xs'
-                  : 'text-[#6B6457] hover:text-[#2A2723]'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>全部記錄 ({allIOEntries.length})</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+              <span>區間匯出與列印</span>
             </button>
           </div>
         </div>
@@ -1272,6 +1292,21 @@ export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
 
         </div>
       )}
+
+      {/* Range Export & Print Modal */}
+      <IORangeExportModal
+        isOpen={isRangeExportOpen}
+        onClose={() => setIsRangeExportOpen(false)}
+        babyProfile={babyProfile}
+        growthRecords={growthRecords}
+        diaryEntries={diaryEntries}
+        onOpenClinicalReportWithRange={(days) => {
+          setIsRangeExportOpen(false);
+          if (onOpenPediatricReport) {
+            onOpenPediatricReport(days);
+          }
+        }}
+      />
 
     </div>
   );

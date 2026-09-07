@@ -56,20 +56,33 @@
 @media print {
   @page {
     size: A4;
-    margin: 12mm 15mm;
+    margin: 10mm 12mm;
   }
 
   html, body {
     background-color: #ffffff !important;
     color: #111111 !important;
-    font-size: 11pt !important;
-    line-height: 1.5 !important;
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
     width: 100% !important;
     height: auto !important;
     overflow: visible !important;
   }
 
-  header, footer, nav, button, .no-print {
+  /* Completely hide all non-print elements */
+  header, footer, nav, button, input, textarea, select, .no-print {
+    display: none !important;
+  }
+
+  /* When printing within modal, hide background app elements */
+  body > div:not(#root) {
+    display: none !important;
+  }
+
+  #root > div > header,
+  #root > div > nav,
+  #root > div > main,
+  #root > div > footer {
     display: none !important;
   }
 
@@ -90,6 +103,7 @@
     overflow: visible !important;
     box-shadow: none !important;
     border: none !important;
+    display: block !important;
   }
 
   .print-paper-sheet {
@@ -101,6 +115,19 @@
     max-width: 100% !important;
     border-radius: 0 !important;
     background: #ffffff !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  #printable-doctor-report {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   .print-avoid-break {

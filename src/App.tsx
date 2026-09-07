@@ -14,6 +14,7 @@ import { AddGrowthModal } from './components/AddGrowthModal';
 import { AddDiaryModal } from './components/AddDiaryModal';
 import { AddMedicalVisitModal } from './components/AddMedicalVisitModal';
 import { EditProfileModal } from './components/EditProfileModal';
+import { FamilyGroupModal } from './components/FamilyGroupModal';
 import { Toolbox } from './components/Toolbox';
 import { TotalIOTracker } from './components/TotalIOTracker';
 
@@ -55,6 +56,7 @@ export default function App() {
   // Modal States
   const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isFamilyGroupOpen, setIsFamilyGroupOpen] = useState(false);
   const [isAddGrowthOpen, setIsAddGrowthOpen] = useState(false);
   const [isAddDiaryOpen, setIsAddDiaryOpen] = useState(false);
   const [diaryInitialCategory, setDiaryInitialCategory] = useState<DiaryCategory>('daily');
@@ -294,6 +296,7 @@ export default function App() {
           vaccineRecords={appData.vaccineRecords}
           onEditProfile={() => setIsEditProfileOpen(true)}
           onOpenPediatricReport={() => setIsReportOpen(true)}
+          onOpenFamilyGroup={() => setIsFamilyGroupOpen(true)}
           onOpenGrowthTracker={() => setActiveTab('growth')}
           onOpenVaccineTracker={() => setActiveTab('vaccines')}
         />
@@ -321,6 +324,7 @@ export default function App() {
             onAddDiaryEntry={handleAddDiaryEntry}
             onDeleteDiaryEntry={handleDeleteDiaryEntry}
             onQuickLogCategory={handleQuickLog}
+            onOpenPediatricReport={() => setIsReportOpen(true)}
           />
         )}
 
@@ -363,6 +367,7 @@ export default function App() {
             syncInfo={appData.syncInfo}
             onOpenPediatricReport={() => setIsReportOpen(true)}
             onOpenCloudSync={() => setIsCloudSyncOpen(true)}
+            onOpenFamilyGroup={() => setIsFamilyGroupOpen(true)}
             onAddDiaryEntry={handleAddDiaryEntry}
             onDeleteDiaryEntry={handleDeleteDiaryEntry}
           />
@@ -440,6 +445,13 @@ export default function App() {
         onClose={() => setIsEditProfileOpen(false)}
         babyProfile={appData.babyProfile}
         onSave={handleSaveProfile}
+      />
+
+      {/* Family Group Management & Monthly Excel Export Modal */}
+      <FamilyGroupModal
+        isOpen={isFamilyGroupOpen}
+        onClose={() => setIsFamilyGroupOpen(false)}
+        appData={appData}
       />
 
     </div>

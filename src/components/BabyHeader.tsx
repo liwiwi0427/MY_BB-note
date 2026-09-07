@@ -10,7 +10,8 @@ import {
   Calendar, 
   Heart,
   Clock,
-  ShieldAlert
+  ShieldAlert,
+  Users
 } from 'lucide-react';
 import { BabyProfile, GrowthRecord, VaccineRecord } from '../types';
 import { getBabyAgeDetails } from '../utils/storage';
@@ -22,6 +23,7 @@ interface BabyHeaderProps {
   vaccineRecords: VaccineRecord[];
   onEditProfile: () => void;
   onOpenPediatricReport: () => void;
+  onOpenFamilyGroup?: () => void;
   onOpenGrowthTracker: () => void;
   onOpenVaccineTracker: () => void;
 }
@@ -32,6 +34,7 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
   vaccineRecords,
   onEditProfile,
   onOpenPediatricReport,
+  onOpenFamilyGroup,
   onOpenGrowthTracker,
   onOpenVaccineTracker,
 }) => {
@@ -133,19 +136,30 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 w-full sm:w-auto justify-between sm:justify-start flex-wrap">
             <button
               onClick={onOpenPediatricReport}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-xs transition-all active:scale-95"
-              title="產生兒科就診專用 PDF 報告"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-xs transition-all active:scale-95 font-bold"
+              title="產生兒科就診專用報告 (支援 I/O 與 Vital Sign 區間選擇)"
             >
               <FileText className="w-3.5 h-3.5 text-[#D9D1C2]" strokeWidth={1.75} />
-              <span>匯出報告</span>
+              <span>就醫報告</span>
             </button>
+
+            {onOpenFamilyGroup && (
+              <button
+                onClick={onOpenFamilyGroup}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-sans tracking-wider bg-[#E6EBE6] text-[#3E4A3E] border border-[#D5DDD5] hover:bg-[#D8E0D8] transition-colors font-bold shadow-xs active:scale-95"
+                title="家庭群組管理與每月所有記錄 .xlsx 輸出"
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-800" />
+                <span>家庭群組</span>
+              </button>
+            )}
 
             <button
               onClick={onEditProfile}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs font-sans tracking-wider bg-[#F9F6F0] text-[#4A453E] border border-[#D1CEC4] hover:bg-[#F2EDE4] transition-colors"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-full text-xs font-sans tracking-wider bg-[#F9F6F0] text-[#4A453E] border border-[#D1CEC4] hover:bg-[#F2EDE4] transition-colors"
             >
               <Edit3 className="w-3.5 h-3.5 text-[#8C8475]" />
               <span>檔案設定</span>
