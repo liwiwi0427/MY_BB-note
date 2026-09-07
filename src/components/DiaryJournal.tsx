@@ -20,7 +20,8 @@ import {
   Activity,
   ArrowRight,
   Search,
-  X
+  X,
+  Edit3
 } from 'lucide-react';
 import { BabyProfile, DiaryCategory, DiaryEntry, BabyMood } from '../types';
 import { calculateDailyIO } from '../utils/ioCalculator';
@@ -30,6 +31,7 @@ interface DiaryJournalProps {
   diaryEntries: DiaryEntry[];
   onAddDiary: () => void;
   onQuickLog: (category: DiaryCategory) => void;
+  onEditDiary?: (entry: DiaryEntry) => void;
   onDeleteDiary: (id: string) => void;
   onOpenTotalIO?: () => void;
 }
@@ -39,6 +41,7 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
   diaryEntries,
   onAddDiary,
   onQuickLog,
+  onEditDiary,
   onDeleteDiary,
   onOpenTotalIO,
 }) => {
@@ -434,6 +437,17 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
                       <span className="text-[11px] text-[#8C8475] font-sans bg-[#F9F6F0] px-2.5 py-0.5 rounded-full border border-[#EBE7DF]">
                         {entry.author} 記
                       </span>
+                    )}
+
+                    {/* Edit button */}
+                    {onEditDiary && (
+                      <button
+                        onClick={() => onEditDiary(entry)}
+                        className="p-1.5 text-[#8C8475] hover:text-[#2A2723] rounded-full hover:bg-[#EBE7DF] transition-colors opacity-70 group-hover:opacity-100"
+                        title="編輯此篇日記與數值"
+                      >
+                        <Edit3 className="w-4 h-4" strokeWidth={1.5} />
+                      </button>
                     )}
 
                     {/* Delete button */}

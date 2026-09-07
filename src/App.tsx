@@ -58,9 +58,12 @@ export default function App() {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isFamilyGroupOpen, setIsFamilyGroupOpen] = useState(false);
   const [isAddGrowthOpen, setIsAddGrowthOpen] = useState(false);
+  const [editingGrowthRecord, setEditingGrowthRecord] = useState<GrowthRecord | null>(null);
   const [isAddDiaryOpen, setIsAddDiaryOpen] = useState(false);
+  const [editingDiaryEntry, setEditingDiaryEntry] = useState<DiaryEntry | null>(null);
   const [diaryInitialCategory, setDiaryInitialCategory] = useState<DiaryCategory>('daily');
   const [isAddVisitOpen, setIsAddVisitOpen] = useState(false);
+  const [editingMedicalVisit, setEditingMedicalVisit] = useState<MedicalVisit | null>(null);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   // Toast notification
@@ -184,11 +187,23 @@ export default function App() {
 
   // Growth Record Actions
   const handleAddGrowthRecord = (newRec: GrowthRecord) => {
-    setAppData((prev) => ({
-      ...prev,
-      growthRecords: [...prev.growthRecords, newRec],
-    }));
-    showToast(`已儲存生長記錄：體重 ${newRec.weight}kg (P${newRec.percentileWeight})`);
+    setAppData((prev) => {
+      const exists = prev.growthRecords.some((r) => r.id === newRec.id);
+      const updated = exists
+        ? prev.growthRecords.map((r) => (r.id === newRec.id ? newRec : r))
+        : [...prev.growthRecords, newRec];
+      return {
+        ...prev,
+        growthRecords: updated,
+      };
+    });
+    showToast(editingGrowthRecord ? '已更新生長記錄！' : `已儲存生長記錄：體重 ${newRec.weight}kg (P${newRec.percentileWeight})`);
+    setEditingGrowthRecord(null);
+  };
+
+  const handleOpenEditGrowthRecord = (record: GrowthRecord) => {
+    setEditingGrowthRecord(record);
+    setIsAddGrowthOpen(true);
   };
 
   const handleDeleteGrowthRecord = (id: string) => {
@@ -230,11 +245,24 @@ export default function App() {
 
   // Diary Actions
   const handleAddDiaryEntry = (newEntry: DiaryEntry) => {
-    setAppData((prev) => ({
-      ...prev,
-      diaryEntries: [newEntry, ...prev.diaryEntries],
-    }));
-    showToast('📔 溫馨日記已發佈！');
+    setAppData((prev) => {
+      const exists = prev.diaryEntries.some((e) => e.id === newEntry.id);
+      const updated = exists
+        ? prev.diaryEntries.map((e) => (e.id === newEntry.id ? newEntry : e))
+        : [newEntry, ...prev.diaryEntries];
+      return {
+        ...prev,
+        diaryEntries: updated,
+      };
+    });
+    showToast(editingDiaryEntry ? '📔 日記記錄已成功更新！' : '📔 溫馨日記已發佈！');
+    setEditingDiaryEntry(null);
+  };
+
+  const handleOpenEditDiaryEntry = (entry: DiaryEntry) => {
+    setEditingDiaryEntry(entry);
+    setDiaryInitialCategory(entry.category);
+    setIsAddDiaryOpen(true);
   };
 
   const handleDeleteDiaryEntry = (id: string) => {
@@ -246,17 +274,30 @@ export default function App() {
   };
 
   const handleQuickLog = (category: DiaryCategory) => {
+    setEditingDiaryEntry(null);
     setDiaryInitialCategory(category);
     setIsAddDiaryOpen(true);
   };
 
   // Medical Visit Actions
   const handleAddMedicalVisit = (newVisit: MedicalVisit) => {
-    setAppData((prev) => ({
-      ...prev,
-      medicalVisits: [newVisit, ...prev.medicalVisits],
-    }));
-    showToast(`已儲存 ${newVisit.clinicName} 就診與用藥紀錄！`);
+    setAppData((prev) => {
+      const exists = prev.medicalVisits.some((v) => v.id === newVisit.id);
+      const updated = exists
+        ? prev.medicalVisits.map((v) => (v.id === newVisit.id ? newVisit : v))
+        : [newVisit, ...prev.medicalVisits];
+      return {
+        ...prev,
+        medicalVisits: updated,
+      };
+    });
+    showToast(editingMedicalVisit ? '🏥 已更新就診與用藥紀錄！' : `已儲存 ${newVisit.clinicName} 就診與用藥紀錄！`);
+    setEditingMedicalVisit(null);
+  };
+
+  const handleOpenEditMedicalVisit = (visit: MedicalVisit) => {
+    setEditingMedicalVisit(visit);
+    setIsAddVisitOpen(true);
   };
 
   const handleDeleteMedicalVisit = (id: string) => {
@@ -307,10 +348,12 @@ export default function App() {
             babyProfile={appData.babyProfile}
             diaryEntries={appData.diaryEntries}
             onAddDiary={() => {
+              setEditingDiaryEntry(null);
               setDiaryInitialCategory('daily');
               setIsAddDiaryOpen(true);
             }}
             onQuickLog={handleQuickLog}
+            onEditDiary={handleOpenEditDiaryEntry}
             onDeleteDiary={handleDeleteDiaryEntry}
             onOpenTotalIO={() => setActiveTab('io')}
           />
@@ -322,6 +365,7 @@ export default function App() {
             growthRecords={appData.growthRecords}
             diaryEntries={appData.diaryEntries}
             onAddDiaryEntry={handleAddDiaryEntry}
+            onEditDiaryEntry={handleOpenEditDiaryEntry}
             onDeleteDiaryEntry={handleDeleteDiaryEntry}
             onQuickLogCategory={handleQuickLog}
             onOpenPediatricReport={() => setIsReportOpen(true)}
@@ -332,7 +376,11 @@ export default function App() {
           <GrowthTracker
             babyProfile={appData.babyProfile}
             growthRecords={appData.growthRecords}
-            onAddRecord={() => setIsAddGrowthOpen(true)}
+            onAddRecord={() => {
+              setEditingGrowthRecord(null);
+              setIsAddGrowthOpen(true);
+            }}
+            onEditRecord={handleOpenEditGrowthRecord}
             onDeleteRecord={handleDeleteGrowthRecord}
           />
         )}
@@ -351,7 +399,11 @@ export default function App() {
             babyProfile={appData.babyProfile}
             medicalVisits={appData.medicalVisits}
             diaryEntries={appData.diaryEntries}
-            onAddVisit={() => setIsAddVisitOpen(true)}
+            onAddVisit={() => {
+              setEditingMedicalVisit(null);
+              setIsAddVisitOpen(true);
+            }}
+            onEditVisit={handleOpenEditMedicalVisit}
             onDeleteVisit={handleDeleteMedicalVisit}
             onOpenPediatricReport={() => setIsReportOpen(true)}
           />
@@ -369,6 +421,7 @@ export default function App() {
             onOpenCloudSync={() => setIsCloudSyncOpen(true)}
             onOpenFamilyGroup={() => setIsFamilyGroupOpen(true)}
             onAddDiaryEntry={handleAddDiaryEntry}
+            onEditDiaryEntry={handleOpenEditDiaryEntry}
             onDeleteDiaryEntry={handleDeleteDiaryEntry}
           />
         )}
@@ -418,24 +471,36 @@ export default function App() {
       {/* Add Growth Measurement Modal */}
       <AddGrowthModal
         isOpen={isAddGrowthOpen}
-        onClose={() => setIsAddGrowthOpen(false)}
+        onClose={() => {
+          setIsAddGrowthOpen(false);
+          setEditingGrowthRecord(null);
+        }}
         babyProfile={appData.babyProfile}
+        editingRecord={editingGrowthRecord}
         onSave={handleAddGrowthRecord}
       />
 
       {/* Add Diary Entry Modal */}
       <AddDiaryModal
         isOpen={isAddDiaryOpen}
-        onClose={() => setIsAddDiaryOpen(false)}
+        onClose={() => {
+          setIsAddDiaryOpen(false);
+          setEditingDiaryEntry(null);
+        }}
         babyProfile={appData.babyProfile}
         initialCategory={diaryInitialCategory}
+        editingEntry={editingDiaryEntry}
         onSave={handleAddDiaryEntry}
       />
 
       {/* Add Medical Visit Modal */}
       <AddMedicalVisitModal
         isOpen={isAddVisitOpen}
-        onClose={() => setIsAddVisitOpen(false)}
+        onClose={() => {
+          setIsAddVisitOpen(false);
+          setEditingMedicalVisit(null);
+        }}
+        editingVisit={editingMedicalVisit}
         onSave={handleAddMedicalVisit}
       />
 

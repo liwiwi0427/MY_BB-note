@@ -39,7 +39,8 @@ import {
   Check,
   Layers,
   Baby,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit3
 } from 'lucide-react';
 import { IORangeExportModal } from './IORangeExportModal';
 
@@ -48,6 +49,7 @@ interface TotalIOTrackerProps {
   growthRecords: GrowthRecord[];
   diaryEntries: DiaryEntry[];
   onAddDiaryEntry?: (entry: DiaryEntry) => void;
+  onEditDiaryEntry?: (entry: DiaryEntry) => void;
   onDeleteDiaryEntry?: (id: string) => void;
   onQuickLogCategory?: (category: any) => void;
   onOpenPediatricReport?: (days?: number) => void;
@@ -58,6 +60,7 @@ export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
   growthRecords,
   diaryEntries,
   onAddDiaryEntry,
+  onEditDiaryEntry,
   onDeleteDiaryEntry,
   onQuickLogCategory,
   onOpenPediatricReport,
@@ -928,6 +931,17 @@ export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
                           {detail.summaryText}
                         </span>
 
+                        {onEditDiaryEntry && (
+                          <button
+                            type="button"
+                            onClick={() => onEditDiaryEntry(entry)}
+                            className="p-1.5 rounded-lg text-[#6B6457] hover:text-[#2A2723] hover:bg-[#EBE7DF] transition-colors"
+                            title="編輯此筆 I/O 記錄"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         {onDeleteDiaryEntry && (
                           <button
                             onClick={() => {
@@ -1267,6 +1281,17 @@ export const TotalIOTracker: React.FC<TotalIOTrackerProps> = ({
                             <Calendar className="w-3 h-3 text-sky-700" />
                             <span>日曆分析</span>
                           </button>
+
+                          {onEditDiaryEntry && (
+                            <button
+                              type="button"
+                              onClick={() => onEditDiaryEntry(entry)}
+                              className="p-1.5 rounded-lg text-[#6B6457] hover:text-[#2A2723] hover:bg-[#EBE7DF] transition-colors"
+                              title="編輯此筆 I/O 記錄"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
                           {onDeleteDiaryEntry && (
                             <button

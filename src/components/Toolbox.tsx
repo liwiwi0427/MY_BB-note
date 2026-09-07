@@ -47,6 +47,7 @@ interface ToolboxProps {
   onOpenCloudSync: () => void;
   onOpenFamilyGroup?: () => void;
   onAddDiaryEntry?: (entry: DiaryEntry) => void;
+  onEditDiaryEntry?: (entry: DiaryEntry) => void;
   onDeleteDiaryEntry?: (id: string) => void;
 }
 
@@ -65,6 +66,7 @@ export const Toolbox: React.FC<ToolboxProps> = ({
   onOpenCloudSync,
   onOpenFamilyGroup,
   onAddDiaryEntry,
+  onEditDiaryEntry,
   onDeleteDiaryEntry,
 }) => {
   const [activeTool, setActiveTool] = useState<ActiveToolTab>('totalio');
@@ -591,6 +593,7 @@ export const Toolbox: React.FC<ToolboxProps> = ({
               growthRecords={growthRecords}
               diaryEntries={diaryEntries}
               onAddDiaryEntry={onAddDiaryEntry}
+              onEditDiaryEntry={onEditDiaryEntry}
               onDeleteDiaryEntry={onDeleteDiaryEntry}
             />
           </div>

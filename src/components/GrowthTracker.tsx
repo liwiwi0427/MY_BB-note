@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   HelpCircle,
-  Activity
+  Activity,
+  Edit3
 } from 'lucide-react';
 import { BabyProfile, GrowthRecord } from '../types';
 import { 
@@ -26,6 +27,7 @@ interface GrowthTrackerProps {
   babyProfile: BabyProfile;
   growthRecords: GrowthRecord[];
   onAddRecord: () => void;
+  onEditRecord?: (record: GrowthRecord) => void;
   onDeleteRecord: (id: string) => void;
 }
 
@@ -35,6 +37,7 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
   babyProfile,
   growthRecords,
   onAddRecord,
+  onEditRecord,
   onDeleteRecord,
 }) => {
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('weight');
@@ -599,13 +602,24 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
                       {r.doctorNote || (r.measuredBy ? `由 ${r.measuredBy} 記錄` : '居家測量')}
                     </td>
                     <td className="py-4 px-3 text-right">
-                      <button
-                        onClick={() => onDeleteRecord(r.id)}
-                        className="p-1.5 text-[#D1CEC4] hover:text-[#C4685D] rounded-full hover:bg-[#F2E6E6] transition-colors"
-                        title="刪除此筆記錄"
-                      >
-                        <Trash2 className="w-4 h-4" strokeWidth={1.5} />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        {onEditRecord && (
+                          <button
+                            onClick={() => onEditRecord(r)}
+                            className="p-1.5 text-[#8C8475] hover:text-[#2A2723] rounded-full hover:bg-[#EBE7DF] transition-colors"
+                            title="編輯此筆生長數據"
+                          >
+                            <Edit3 className="w-4 h-4" strokeWidth={1.5} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onDeleteRecord(r.id)}
+                          className="p-1.5 text-[#D1CEC4] hover:text-[#C4685D] rounded-full hover:bg-[#F2E6E6] transition-colors"
+                          title="刪除此筆記錄"
+                        >
+                          <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

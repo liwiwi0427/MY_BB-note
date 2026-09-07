@@ -15,7 +15,8 @@ import {
   AlertTriangle,
   Heart,
   Baby,
-  Activity
+  Activity,
+  Edit3
 } from 'lucide-react';
 import { BabyProfile, MedicalVisit, DiaryEntry } from '../types';
 import { getBabyAgeDetails } from '../utils/storage';
@@ -25,6 +26,7 @@ interface MedicalPassportProps {
   medicalVisits: MedicalVisit[];
   diaryEntries: DiaryEntry[];
   onAddVisit: () => void;
+  onEditVisit?: (visit: MedicalVisit) => void;
   onDeleteVisit: (id: string) => void;
   onOpenPediatricReport: () => void;
 }
@@ -34,6 +36,7 @@ export const MedicalPassport: React.FC<MedicalPassportProps> = ({
   medicalVisits,
   diaryEntries,
   onAddVisit,
+  onEditVisit,
   onDeleteVisit,
   onOpenPediatricReport,
 }) => {
@@ -289,13 +292,24 @@ export const MedicalPassport: React.FC<MedicalPassportProps> = ({
                     )}
                   </div>
 
-                  <button
-                    onClick={() => onDeleteVisit(visit.id)}
-                    className="self-end sm:self-auto p-1.5 text-[#D1CEC4] hover:text-[#C4685D] rounded-full hover:bg-[#F2E6E6] transition-colors"
-                    title="刪除此就診記錄"
-                  >
-                    <Trash2 className="w-4 h-4" strokeWidth={1.5} />
-                  </button>
+                  <div className="flex items-center gap-1 self-end sm:self-auto">
+                    {onEditVisit && (
+                      <button
+                        onClick={() => onEditVisit(visit)}
+                        className="p-1.5 text-[#8C8475] hover:text-[#2A2723] rounded-full hover:bg-[#EBE7DF] transition-colors"
+                        title="編輯此就診紀錄"
+                      >
+                        <Edit3 className="w-4 h-4" strokeWidth={1.5} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onDeleteVisit(visit.id)}
+                      className="p-1.5 text-[#D1CEC4] hover:text-[#C4685D] rounded-full hover:bg-[#F2E6E6] transition-colors"
+                      title="刪除此就診記錄"
+                    >
+                      <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="text-xs sm:text-sm space-y-2 font-sans">

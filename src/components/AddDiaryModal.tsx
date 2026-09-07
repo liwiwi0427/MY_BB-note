@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookHeart, 
   Smile, 
@@ -11,7 +11,10 @@ import {
   Plus, 
   Trash2,
   Droplets,
-  Activity
+  Activity,
+  Edit3,
+  Pill,
+  Clock
 } from 'lucide-react';
 import { BabyProfile, DiaryCategory, DiaryEntry, BabyMood } from '../types';
 
@@ -20,6 +23,7 @@ interface AddDiaryModalProps {
   onClose: () => void;
   babyProfile: BabyProfile;
   initialCategory?: DiaryCategory;
+  editingEntry?: DiaryEntry | null;
   onSave: (entry: DiaryEntry) => void;
 }
 
@@ -28,13 +32,13 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
   onClose,
   babyProfile,
   initialCategory = 'daily',
+  editingEntry,
   onSave,
 }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const nowTimeStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const isEditing = Boolean(editingEntry);
 
-  const [date, setDate] = useState(todayStr);
-  const [time, setTime] = useState(nowTimeStr);
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
   const [category, setCategory] = useState<DiaryCategory>(initialCategory);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -67,6 +71,99 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
   const [photoUrl, setPhotoUrl] = useState('');
   const [photosList, setPhotosList] = useState<string[]>([]);
 
+  // Synchronize state when modal opens or editingEntry changes
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (editingEntry) {
+      setDate(editingEntry.date || new Date().toISOString().split('T')[0]);
+      setTime(editingEntry.time || new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }));
+      setCategory(editingEntry.category || 'daily');
+      setTitle(editingEntry.title || '');
+      setContent(editingEntry.content || '');
+      setMood(editingEntry.mood || 'happy');
+      setMilestoneTag(editingEntry.milestoneTag || '');
+      setAuthor(editingEntry.author || '媽媽');
+
+      // Metrics
+      const m = editingEntry.metrics;
+      if (m) {
+        setFeedingType(m.feedingType || 'formula');
+        setFeedingAmountMl(m.feedingAmountMl !== undefined ? String(m.feedingAmountMl) : '');
+        setFeedingDurationMins(m.feedingDurationMins !== undefined ? String(m.feedingDurationMins) : '');
+        setWaterAmountMl(m.waterAmountMl !== undefined ? String(m.waterAmountMl) : '');
+        setSolidFoodDetails(m.solidFoodDetails || '');
+
+        setDiaperType(m.diaperType || 'wet');
+        setDiaperWetnessLevel(m.diaperWetnessLevel || 'medium');
+        setUrineAmountMl(m.urineAmountMl !== undefined ? String(m.urineAmountMl) : '');
+        setStoolConsistency(m.stoolConsistency || 'soft');
+        setStoolColor(m.stoolColor || 'yellow');
+        setVomitSeverity(m.vomitSeverity || 'none');
+        setVomitMl(m.vomitMl !== undefined ? String(m.vomitMl) : '');
+
+        setSleepHours(m.sleepHours !== undefined ? String(m.sleepHours) : '');
+        setSleepType(m.sleepType || 'night');
+        setTemperatureC(m.temperatureC !== undefined ? String(m.temperatureC) : '');
+        setMedicationTaken(m.medicationTaken || '');
+      } else {
+        setFeedingType('formula');
+        setFeedingAmountMl('');
+        setFeedingDurationMins('');
+        setWaterAmountMl('');
+        setSolidFoodDetails('');
+        setDiaperType('wet');
+        setDiaperWetnessLevel('medium');
+        setUrineAmountMl('');
+        setStoolConsistency('soft');
+        setStoolColor('yellow');
+        setVomitSeverity('none');
+        setVomitMl('');
+        setSleepHours('');
+        setSleepType('night');
+        setTemperatureC('');
+        setMedicationTaken('');
+      }
+
+      setPhotosList(editingEntry.photos || []);
+      setPhotoUrl('');
+    } else {
+      // New record defaults
+      const todayStr = new Date().toISOString().split('T')[0];
+      const nowTimeStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+      setDate(todayStr);
+      setTime(nowTimeStr);
+      setCategory(initialCategory);
+      setTitle('');
+      setContent('');
+      setMood('happy');
+      setMilestoneTag('');
+      setAuthor('媽媽');
+
+      setFeedingType('formula');
+      setFeedingAmountMl('');
+      setFeedingDurationMins('');
+      setWaterAmountMl('');
+      setSolidFoodDetails('');
+
+      setDiaperType('wet');
+      setDiaperWetnessLevel('medium');
+      setUrineAmountMl('');
+      setStoolConsistency('soft');
+      setStoolColor('yellow');
+      setVomitSeverity('none');
+      setVomitMl('');
+
+      setSleepHours('');
+      setSleepType('night');
+      setTemperatureC('');
+      setMedicationTaken('');
+
+      setPhotosList([]);
+      setPhotoUrl('');
+    }
+  }, [isOpen, editingEntry, initialCategory]);
+
   if (!isOpen) return null;
 
   const moodsList: { id: BabyMood; emoji: string; label: string }[] = [
@@ -86,6 +183,8 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
     '睡過夜連續 6 小時',
     '第一次抓握玩具',
     '會發出「爸、媽」音',
+    '第一次扶著站立',
+    '邁出人生第一步',
   ];
 
   const handleAddPhoto = () => {
@@ -106,6 +205,8 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
       category === 'diaper' ? `換尿布 (${diaperType === 'wet' ? '純尿' : diaperType === 'dirty' ? '大便' : '尿+便'})` :
       category === 'io' ? 'Total I/O 水分進出紀錄' :
       category === 'sleep' ? `小睡/睡眠 ${sleepHours ? `${sleepHours}小時` : ''}` :
+      category === 'temperature' ? `體溫測量 ${temperatureC ? `${temperatureC}°C` : ''}` :
+      category === 'milestone' ? (milestoneTag ? `達成里程碑：${milestoneTag}` : '成長里程碑') :
       '寶寶成長動態'
     );
 
@@ -133,8 +234,8 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
     if (temperatureC) metricsObj.temperatureC = parseFloat(temperatureC);
     if (medicationTaken.trim()) metricsObj.medicationTaken = medicationTaken.trim();
 
-    const newEntry: DiaryEntry = {
-      id: `diary_${Date.now()}`,
+    const entryToSave: DiaryEntry = {
+      id: editingEntry ? editingEntry.id : `diary_${Date.now()}`,
       date,
       time,
       category,
@@ -147,26 +248,26 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
       metrics: Object.keys(metricsObj).length > 0 ? metricsObj : undefined,
     };
 
-    onSave(newEntry);
+    onSave(entryToSave);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2A2723]/60 backdrop-blur-xs animate-fadeIn">
-      <div className="bg-[#F9F6F0] rounded-[36px] p-6 sm:p-8 max-w-xl w-full border border-[#D9D1C2] shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#2A2723]/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div className="bg-[#F9F6F0] rounded-[36px] p-6 sm:p-8 max-w-xl w-full border border-[#D9D1C2] shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#EBE7DF]">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full bg-[#2A2723] text-[#F9F6F0] flex items-center justify-center">
-              <BookHeart className="w-5 h-5" strokeWidth={1.5} />
+              {isEditing ? <Edit3 className="w-5 h-5" strokeWidth={1.5} /> : <BookHeart className="w-5 h-5" strokeWidth={1.5} />}
             </div>
             <div>
               <h3 className="text-lg sm:text-xl font-serif font-bold text-[#2A2723]">
-                記錄寶寶成長日常與日記
+                {isEditing ? '編輯寶寶成長日記與照護記錄' : '記錄寶寶成長日常與日記'}
               </h3>
               <p className="text-xs text-[#8C8475] font-sans">
-                {babyProfile.name} 的專屬成長點滴
+                {babyProfile.name} 的專屬成長點滴 ｜ {isEditing ? '可修改所有數值、時間與備註' : '完整支援進出量、體溫、睡眠與里程碑'}
               </p>
             </div>
           </div>
@@ -182,7 +283,7 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
           
           {/* Category Tabs */}
           <div>
-            <label className="text-[#8C8475] block mb-1.5 font-medium">日記類型</label>
+            <label className="text-[#8C8475] block mb-1.5 font-medium">記錄類別</label>
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { id: 'daily', label: '📔 生活', icon: BookHeart },
@@ -218,22 +319,22 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
           {/* Date & Time */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[#8C8475] block mb-1">記錄日期</label>
+              <label className="text-[#8C8475] block mb-1 font-medium">記錄日期</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                className="w-full px-3 py-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723] font-mono text-xs"
                 required
               />
             </div>
             <div>
-              <label className="text-[#8C8475] block mb-1">記錄時間</label>
+              <label className="text-[#8C8475] block mb-1 font-medium">記錄時間</label>
               <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                className="w-full px-3 py-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723] font-mono text-xs"
                 required
               />
             </div>
@@ -253,7 +354,7 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                   <select
                     value={feedingType}
                     onChange={(e) => setFeedingType(e.target.value as any)}
-                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
                   >
                     <option value="formula">配方奶 (瓶餵)</option>
                     <option value="breast">母乳 (親餵/瓶餵)</option>
@@ -268,7 +369,7 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                     placeholder="如: 120"
                     value={feedingAmountMl}
                     onChange={(e) => setFeedingAmountMl(e.target.value)}
-                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono"
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723]"
                   />
                 </div>
               </div>
@@ -281,7 +382,33 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                     placeholder="如: 20 (若親餵未量ml，將依分鐘估算)"
                     value={feedingDurationMins}
                     onChange={(e) => setFeedingDurationMins(e.target.value)}
-                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono"
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723]"
+                  />
+                </div>
+              )}
+
+              {feedingType === 'solid' && (
+                <div>
+                  <label className="text-[#6B6457] block mb-1">副食品菜色與食材</label>
+                  <input
+                    type="text"
+                    placeholder="如: 南瓜泥 50g、南瓜蘋果糊、米餅 2 片"
+                    value={solidFoodDetails}
+                    onChange={(e) => setSolidFoodDetails(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                  />
+                </div>
+              )}
+
+              {category === 'io' && (
+                <div>
+                  <label className="text-[#6B6457] block mb-1">額外飲水量 / 補液 (ml)</label>
+                  <input
+                    type="number"
+                    placeholder="如: 30"
+                    value={waterAmountMl}
+                    onChange={(e) => setWaterAmountMl(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723]"
                   />
                 </div>
               )}
@@ -302,11 +429,12 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                   <select
                     value={diaperType}
                     onChange={(e) => setDiaperType(e.target.value as any)}
-                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
                   >
                     <option value="wet">純排尿 (濕尿布)</option>
                     <option value="dirty">排便 (大便)</option>
                     <option value="both">尿尿 + 排便</option>
+                    <option value="clean">乾淨無排泄</option>
                   </select>
                 </div>
                 <div>
@@ -314,14 +442,28 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                   <select
                     value={diaperWetnessLevel}
                     onChange={(e) => setDiaperWetnessLevel(e.target.value as any)}
-                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
                   >
                     <option value="light">輕微濕 (~30ml)</option>
                     <option value="medium">中度濕 (~60ml)</option>
                     <option value="heavy">沈重濕重尿布 (~100ml)</option>
+                    <option value="measured">精確磅秤秤重</option>
                   </select>
                 </div>
               </div>
+
+              {diaperWetnessLevel === 'measured' && (
+                <div>
+                  <label className="text-[#6B6457] block mb-1">精確尿量/排泄重量 (g 或 ml)</label>
+                  <input
+                    type="number"
+                    placeholder="如: 75"
+                    value={urineAmountMl}
+                    onChange={(e) => setUrineAmountMl(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723]"
+                  />
+                </div>
+              )}
 
               {/* Stool consistency & vomit */}
               <div className="grid grid-cols-2 gap-2">
@@ -330,7 +472,7 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                   <select
                     value={stoolConsistency}
                     onChange={(e) => setStoolConsistency(e.target.value as any)}
-                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
                   >
                     <option value="soft">正常軟便 / 糊狀便</option>
                     <option value="watery">水便 (水瀉)</option>
@@ -344,7 +486,7 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                   <select
                     value={vomitSeverity}
                     onChange={(e) => setVomitSeverity(e.target.value as any)}
-                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
                   >
                     <option value="none">無溢奶</option>
                     <option value="spit_up">微量溢奶 (~15ml)</option>
@@ -353,12 +495,167 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
                   </select>
                 </div>
               </div>
+
+              {vomitSeverity !== 'none' && (
+                <div>
+                  <label className="text-[#6B6457] block mb-1">估計吐奶量 (ml)</label>
+                  <input
+                    type="number"
+                    placeholder="如: 25"
+                    value={vomitMl}
+                    onChange={(e) => setVomitMl(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723]"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SPECIFIC FIELDS: SLEEP */}
+          {category === 'sleep' && (
+            <div className="p-3.5 bg-[#F2EDE4] rounded-2xl space-y-3 border border-[#D9D1C2]">
+              <span className="font-bold text-[#2A2723] flex items-center gap-1.5">
+                <Moon className="w-4 h-4 text-indigo-700" />
+                <span>睡眠數據記錄</span>
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[#6B6457] block mb-1">睡眠型態</label>
+                  <select
+                    value={sleepType}
+                    onChange={(e) => setSleepType(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                  >
+                    <option value="night">夜間長睡眠</option>
+                    <option value="nap">日間小睡 (Nap)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[#6B6457] block mb-1">睡眠時數 (小時)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="如: 2.5 或 8.0"
+                    value={sleepHours}
+                    onChange={(e) => setSleepHours(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SPECIFIC FIELDS: TEMPERATURE */}
+          {category === 'temperature' && (
+            <div className="p-3.5 bg-[#F2EDE4] rounded-2xl space-y-3 border border-[#D9D1C2]">
+              <span className="font-bold text-[#2A2723] flex items-center gap-1.5">
+                <Thermometer className="w-4 h-4 text-rose-700" />
+                <span>體溫與發燒監測</span>
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[#6B6457] block mb-1">測量體溫 (°C)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="如: 37.2 或 38.5"
+                    value={temperatureC}
+                    onChange={(e) => setTemperatureC(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723] font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[#6B6457] block mb-1">退燒處置 / 藥物</label>
+                  <input
+                    type="text"
+                    placeholder="如: 安佳熱 3.5ml、溫水擦澡"
+                    value={medicationTaken}
+                    onChange={(e) => setMedicationTaken(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SPECIFIC FIELDS: MEDICAL */}
+          {category === 'medical' && (
+            <div className="p-3.5 bg-[#F2EDE4] rounded-2xl space-y-3 border border-[#D9D1C2]">
+              <span className="font-bold text-[#2A2723] flex items-center gap-1.5">
+                <Pill className="w-4 h-4 text-emerald-700" />
+                <span>用藥處置與體溫</span>
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[#6B6457] block mb-1">服用藥品 / 劑量</label>
+                  <input
+                    type="text"
+                    placeholder="如: 息咳寧 2.5ml、希普利敏 2ml"
+                    value={medicationTaken}
+                    onChange={(e) => setMedicationTaken(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[#6B6457] block mb-1">當下體溫 (°C，選填)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="如: 37.0"
+                    value={temperatureC}
+                    onChange={(e) => setTemperatureC(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white font-mono text-[#2A2723]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SPECIFIC FIELDS: MILESTONES */}
+          {category === 'milestone' && (
+            <div className="p-3.5 bg-[#F2EDE4] rounded-2xl space-y-3 border border-[#D9D1C2]">
+              <span className="font-bold text-[#2A2723] flex items-center gap-1.5">
+                <Award className="w-4 h-4 text-amber-600" />
+                <span>里程碑徽章標籤</span>
+              </span>
+              <div>
+                <label className="text-[#6B6457] block mb-1">常用里程碑快選：</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {milestonePresets.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        setMilestoneTag(preset);
+                        if (!title) setTitle(preset);
+                      }}
+                      className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${
+                        milestoneTag === preset
+                          ? 'bg-[#2A2723] text-white border-[#2A2723]'
+                          : 'bg-white text-[#4A453E] border-[#D1CEC4] hover:bg-[#EBE7DF]'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[#6B6457] block mb-1">自訂里程碑標籤</label>
+                <input
+                  type="text"
+                  placeholder="自訂，例如：第一次去動物園看大象"
+                  value={milestoneTag}
+                  onChange={(e) => setMilestoneTag(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
+                />
+              </div>
             </div>
           )}
 
           {/* Title & Content */}
           <div>
-            <label className="text-[#8C8475] block mb-1">標題 / 摘要</label>
+            <label className="text-[#8C8475] block mb-1 font-medium">標題 / 摘要</label>
             <input
               type="text"
               placeholder="例：喝了 150ml 奶後安穩睡著、第一次長牙"
@@ -369,7 +666,7 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
           </div>
 
           <div>
-            <label className="text-[#8C8475] block mb-1">詳細心得與紀錄</label>
+            <label className="text-[#8C8475] block mb-1 font-medium">詳細記錄與備註說明</label>
             <textarea
               rows={3}
               placeholder="記錄寶寶的表情、喝奶作息與互動心得..."
@@ -382,11 +679,11 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
           {/* Mood & Author */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[#8C8475] block mb-1">寶寶當下心情</label>
+              <label className="text-[#8C8475] block mb-1 font-medium">寶寶當下心情</label>
               <select
                 value={mood}
                 onChange={(e) => setMood(e.target.value as BabyMood)}
-                className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
               >
                 {moodsList.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -396,15 +693,56 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="text-[#8C8475] block mb-1">記錄照護者</label>
+              <label className="text-[#8C8475] block mb-1 font-medium">記錄照護者</label>
               <input
                 type="text"
                 placeholder="媽媽 / 爸爸 / 褓母"
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
-                className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white"
+                className="w-full p-2 rounded-xl border border-[#D1CEC4] bg-white text-[#2A2723]"
               />
             </div>
+          </div>
+
+          {/* Photos Attachment */}
+          <div className="p-3.5 bg-white rounded-2xl border border-[#D9D1C2] space-y-2">
+            <label className="text-[#8C8475] block font-medium flex items-center gap-1.5">
+              <ImageIcon className="w-3.5 h-3.5 text-[#6B6457]" />
+              <span>新增相片連結 (選填)</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                placeholder="輸入相片網址 (https://...)"
+                value={photoUrl}
+                onChange={(e) => setPhotoUrl(e.target.value)}
+                className="flex-1 px-3 py-1.5 rounded-xl border border-[#D1CEC4] text-[#2A2723] text-xs"
+              />
+              <button
+                type="button"
+                onClick={handleAddPhoto}
+                className="px-3 py-1.5 bg-[#2A2723] text-white rounded-xl hover:bg-[#3D3833] text-xs font-medium"
+              >
+                加入相片
+              </button>
+            </div>
+
+            {photosList.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {photosList.map((url, idx) => (
+                  <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-[#D1CEC4]">
+                    <img src={url} alt="Uploaded" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePhoto(idx)}
+                      className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-300" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Submit Buttons */}
@@ -412,15 +750,25 @@ export const AddDiaryModal: React.FC<AddDiaryModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-full border border-[#D1CEC4] text-[#4A453E] hover:bg-[#E6DFD1]"
+              className="px-5 py-2.5 rounded-full border border-[#D1CEC4] text-[#4A453E] hover:bg-[#E6DFD1] transition-colors"
             >
               取消
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-full bg-[#2A2723] hover:bg-[#3D3833] text-white font-medium shadow-sm transition-all"
+              className="px-6 py-2.5 rounded-full bg-[#2A2723] hover:bg-[#3D3833] text-white font-medium shadow-sm transition-all flex items-center gap-1.5"
             >
-              發佈並儲存日記
+              {isEditing ? (
+                <>
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>更新並儲存日記</span>
+                </>
+              ) : (
+                <>
+                  <BookHeart className="w-3.5 h-3.5" />
+                  <span>發佈並儲存日記</span>
+                </>
+              )}
             </button>
           </div>
 

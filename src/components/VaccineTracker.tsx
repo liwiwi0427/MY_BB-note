@@ -55,9 +55,11 @@ export const VaccineTracker: React.FC<VaccineTrackerProps> = ({
 
   // Map schedule items with records
   const enrichedList = VACCINE_SCHEDULE.map((item) => {
-    const record = vaccineRecords.find((r) => r.vaccineId === item.id) || {
-      id: `vac-${item.id}`,
-      vaccineId: item.id,
+    const record = vaccineRecords.find(
+      (r) => r.scheduleId === item.id || (r as any).vaccineId === item.id || r.id === `vrec_${item.id}` || r.id === `vac-${item.id}`
+    ) || {
+      id: `vrec_${item.id}`,
+      scheduleId: item.id,
       vaccineName: item.name,
       doseNumber: item.doseNumber,
       scheduledDate: new Date(new Date(babyProfile.birthday).getTime() + item.targetAgeMonths * 30.4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -69,7 +71,10 @@ export const VaccineTracker: React.FC<VaccineTrackerProps> = ({
 
     return {
       scheduleItem: item,
-      record,
+      record: {
+        ...record,
+        scheduleId: record.scheduleId || item.id,
+      },
       diffDays,
     };
   });
