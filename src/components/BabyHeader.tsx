@@ -11,9 +11,11 @@ import {
   Heart,
   Clock,
   ShieldAlert,
-  Users
+  Users,
+  Cloud,
+  CloudCheck
 } from 'lucide-react';
-import { BabyProfile, GrowthRecord, VaccineRecord } from '../types';
+import { BabyProfile, GrowthRecord, VaccineRecord, AppDataStore } from '../types';
 import { getBabyAgeDetails } from '../utils/storage';
 import { getPercentileInterpretation } from '../data/whoGrowthData';
 
@@ -26,6 +28,9 @@ interface BabyHeaderProps {
   onOpenFamilyGroup?: () => void;
   onOpenGrowthTracker: () => void;
   onOpenVaccineTracker: () => void;
+  syncInfo?: AppDataStore['syncInfo'];
+  onManualSave?: () => void;
+  isSaving?: boolean;
 }
 
 export const BabyHeader: React.FC<BabyHeaderProps> = ({
@@ -37,6 +42,9 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
   onOpenFamilyGroup,
   onOpenGrowthTracker,
   onOpenVaccineTracker,
+  syncInfo,
+  onManualSave,
+  isSaving,
 }) => {
   const ageDetails = getBabyAgeDetails(babyProfile.birthday);
 
@@ -137,6 +145,32 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 w-full sm:w-auto justify-between sm:justify-start flex-wrap">
+            {onManualSave && (
+              <button
+                type="button"
+                onClick={onManualSave}
+                disabled={isSaving}
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-sans tracking-wider transition-all font-bold shadow-xs active:scale-95 ${
+                  isSaving 
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse cursor-wait'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80'
+                }`}
+                title="立即儲存並將最新資料同步備份至 Firebase 雲端與本機"
+              >
+                {isSaving ? (
+                  <>
+                    <Cloud className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                    <span>正在存檔...</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudCheck className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>立即存檔</span>
+                  </>
+                )}
+              </button>
+            )}
+
             <button
               onClick={onOpenPediatricReport}
               className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-xs transition-all active:scale-95 font-bold"

@@ -86,15 +86,16 @@ export const AddMedicalVisitModal: React.FC<AddMedicalVisitModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clinicName.trim() || !diagnosis.trim()) return;
+    const finalClinic = clinicName.trim() || '小兒科診所';
+    const finalDiagnosis = diagnosis.trim() || reason.trim() || '門診健檢 / 診療評估';
 
     const visitToSave: MedicalVisit = {
       id: editingVisit ? editingVisit.id : `visit_${Date.now()}`,
-      date,
-      clinicName: clinicName.trim(),
+      date: date || new Date().toISOString().split('T')[0],
+      clinicName: finalClinic,
       doctorName: doctorName.trim() || undefined,
       reason: reason.trim() || '常規回診健檢',
-      diagnosis: diagnosis.trim(),
+      diagnosis: finalDiagnosis,
       notes: notes.trim() || undefined,
       temperatureAtVisit: parseFloat(temperatureAtVisit) || undefined,
       prescriptions: prescriptions.length > 0 ? prescriptions : undefined,
@@ -208,12 +209,11 @@ export const AddMedicalVisitModal: React.FC<AddMedicalVisitModalProps> = ({
 
           <div>
             <label className="block text-xs uppercase tracking-wider text-[#6B6457] mb-1 font-medium">
-              醫師臨床診斷 *
+              醫師臨床診斷
             </label>
             <input
               type="text"
-              required
-              placeholder="如：急性上呼吸道感染、腸胃炎、鵝口瘡"
+              placeholder="如：急性上呼吸道感染、腸胃炎、鵝口瘡 (若無則自動帶入主訴)"
               value={diagnosis}
               onChange={(e) => setDiagnosis(e.target.value)}
               className="w-full px-3 py-2 rounded-full border border-[#D1CEC4] bg-white text-xs text-[#2A2723] font-bold"

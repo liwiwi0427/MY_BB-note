@@ -70,7 +70,17 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!numWeight || !numLength || !numHead) return;
+    if (!numWeight || numWeight <= 0) {
+      alert('請輸入有效的寶寶體重 (kg)');
+      return;
+    }
+
+    // Default missing measurements to previous record or profile birth data
+    const finalLength = numLength > 0 ? numLength : (editingRecord?.length || babyProfile.birthLength || 50);
+    const finalHead = numHead > 0 ? numHead : (editingRecord?.headCirc || babyProfile.birthHeadCirc || 34);
+
+    const lengthM = finalLength / 100;
+    const finalBmi = lengthM > 0 ? parseFloat((numWeight / (lengthM * lengthM)).toFixed(1)) : undefined;
 
     const recordToSave: GrowthRecord = {
       id: editingRecord ? editingRecord.id : `growth_${Date.now()}`,
@@ -78,12 +88,12 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
       ageMonths,
       ageDays: diffDays,
       weight: numWeight,
-      length: numLength,
-      headCirc: numHead,
+      length: finalLength,
+      headCirc: finalHead,
       percentileWeight: pWeight,
-      percentileLength: pLength,
-      percentileHeadCirc: pHead,
-      bmi,
+      percentileLength: numLength > 0 ? pLength : (editingRecord?.percentileLength || 50),
+      percentileHeadCirc: numHead > 0 ? pHead : (editingRecord?.percentileHeadCirc || 50),
+      bmi: finalBmi,
       doctorNote: doctorNote.trim() || undefined,
       measuredBy: measuredBy.trim() || undefined,
     };
@@ -173,15 +183,14 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
             {/* Length */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-sans uppercase tracking-wider text-[#6B6457] text-center font-medium">
-                身長 (cm) *
+                身長 (cm)
               </label>
               <input
                 type="number"
                 step="0.1"
                 min="20"
                 max="130"
-                required
-                placeholder="如: 63.5"
+                placeholder="選填 / 自動帶入"
                 value={length}
                 onChange={(e) => setLength(e.target.value)}
                 className="w-full text-center px-2 py-2.5 rounded-2xl border border-[#D1CEC4] bg-white text-base font-mono font-bold text-[#2A2723] focus:outline-hidden focus:border-[#2A2723]"
@@ -194,15 +203,14 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
             {/* Head Circumference */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-sans uppercase tracking-wider text-[#6B6457] text-center font-medium">
-                頭圍 (cm) *
+                頭圍 (cm)
               </label>
               <input
                 type="number"
                 step="0.1"
                 min="20"
                 max="60"
-                required
-                placeholder="如: 41.5"
+                placeholder="選填 / 自動帶入"
                 value={headCirc}
                 onChange={(e) => setHeadCirc(e.target.value)}
                 className="w-full text-center px-2 py-2.5 rounded-2xl border border-[#D1CEC4] bg-white text-base font-mono font-bold text-[#2A2723] focus:outline-hidden focus:border-[#2A2723]"

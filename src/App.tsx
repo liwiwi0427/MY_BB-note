@@ -31,8 +31,11 @@ import {
   loadAppData, 
   saveAppData, 
   pushToCloud, 
-  pullFromCloud 
+  pullFromCloud,
+  pushCloudBackup,
+  pullCloudBackup
 } from './utils/storage';
+import { PRIMARY_DEFAULT_SYNC_CODE } from './data/defaultBabyData';
 import { subscribeBabyDataFromFirebase } from './utils/firebase';
 import { 
   ShieldCheck, 
@@ -49,8 +52,10 @@ export default function App() {
   const [appData, setAppData] = useState<AppDataStore>(() => loadAppData());
   const [activeTab, setActiveTab] = useState<TabType>('diary');
 
-  // Firebase Real-time sync state
+  // Firebase Real-time sync & saving states
   const [isLiveSyncing, setIsLiveSyncing] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastProcessedRemoteUpdatedAtRef = useRef<string | null>(null);
 
   // Modal States
@@ -76,10 +81,79 @@ export default function App() {
     }, 3000);
   }, []);
 
-  // Save to LocalStorage whenever appData updates
+  // Core function to immediately persist to localStorage and push backup to Cloud (Firebase + Server)
+  const persistAndSync = useCallback((nextState: AppDataStore, immediateSync = false, toastSuccessMsg?: string) => {
+    // 1. Immediately save to LocalStorage
+    saveAppData(nextState);
+
+    // 2. Mark our update timestamp to avoid echo loops
+    const nowIso = new Date().toISOString();
+    lastProcessedRemoteUpdatedAtRef.current = nowIso;
+
+    // 3. Clear existing debounced timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    const doCloudPush = async () => {
+      setIsSaving(true);
+      try {
+        const res = await pushCloudBackup(nextState);
+        if (res.success) {
+          lastProcessedRemoteUpdatedAtRef.current = res.updatedAt || nowIso;
+          setAppData((current) => ({
+            ...current,
+            syncInfo: {
+              ...current.syncInfo,
+              version: res.version || current.syncInfo.version,
+              lastSyncedAt: res.updatedAt || nowIso,
+              statusMessage: '已成功存檔至雲端與本機',
+              firebaseConnected: true,
+            },
+          }));
+        }
+      } catch (err) {
+        console.warn('Auto cloud sync push error:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    if (immediateSync) {
+      doCloudPush();
+    } else {
+      autoSaveTimerRef.current = setTimeout(doCloudPush, 800);
+    }
+
+    if (toastSuccessMsg) {
+      showToast(toastSuccessMsg);
+    }
+  }, [showToast]);
+
+  // Initial cloud check / hydration on mount
   useEffect(() => {
-    saveAppData(appData);
-  }, [appData]);
+    const code = appData.syncInfo?.syncCode || PRIMARY_DEFAULT_SYNC_CODE;
+    pullCloudBackup(code).then((res) => {
+      if (res.success && res.data) {
+        setAppData((current) => {
+          const remoteVer = res.data!.syncInfo?.version || 0;
+          const currentVer = current.syncInfo?.version || 0;
+          const currentCount = current.diaryEntries.length + current.growthRecords.length + current.medicalVisits.length;
+          const remoteCount = res.data!.diaryEntries.length + res.data!.growthRecords.length + res.data!.medicalVisits.length;
+
+          if (remoteVer > currentVer || (currentCount === 0 && remoteCount > 0)) {
+            lastProcessedRemoteUpdatedAtRef.current = res.data!.syncInfo?.lastSyncedAt || null;
+            saveAppData(res.data!);
+            showToast('☁️ 已自動載入最新雲端存檔！');
+            return res.data!;
+          }
+          return current;
+        });
+      }
+    }).catch((err) => {
+      console.warn('Initial cloud hydration check:', err);
+    });
+  }, []); // Run once on startup
 
   // Firebase Live Sync Subscription (Multi-device real-time listener)
   useEffect(() => {
@@ -93,14 +167,17 @@ export default function App() {
         if (meta.updatedAt && meta.updatedAt === lastProcessedRemoteUpdatedAtRef.current) {
           return;
         }
-        lastProcessedRemoteUpdatedAtRef.current = meta.updatedAt || null;
 
         setAppData((current) => {
           const currentVer = current.syncInfo?.version || 0;
           const incomingVer = remoteData.syncInfo?.version || 0;
+          const currentCount = current.diaryEntries.length + current.growthRecords.length + current.medicalVisits.length;
+          const remoteCount = remoteData.diaryEntries.length + remoteData.growthRecords.length + remoteData.medicalVisits.length;
 
-          // If incoming version is equal or newer, update local store
-          if (incomingVer >= currentVer) {
+          // If incoming version is strictly newer OR incoming has records while current is empty
+          if (incomingVer > currentVer || (currentCount === 0 && remoteCount > 0)) {
+            lastProcessedRemoteUpdatedAtRef.current = meta.updatedAt || null;
+            saveAppData(remoteData);
             showToast(`🔥 Firebase 即時收到家庭成員更新！`);
             return {
               ...remoteData,
@@ -124,18 +201,49 @@ export default function App() {
     };
   }, [isLiveSyncing, appData.syncInfo.syncCode, showToast]);
 
-  // Push to Cloud Handler (Manual or auto)
+  // Manual Save Trigger (For header button and quick save)
+  const handleManualSave = async () => {
+    setIsSaving(true);
+    showToast('正在將最新資料儲存至雲端與本機...');
+    try {
+      const res = await pushCloudBackup(appData);
+      if (res.success) {
+        lastProcessedRemoteUpdatedAtRef.current = res.updatedAt || new Date().toISOString();
+        setAppData((prev) => ({
+          ...prev,
+          syncInfo: {
+            ...prev.syncInfo,
+            lastSyncedAt: res.updatedAt || new Date().toISOString(),
+            version: res.version || prev.syncInfo.version + 1,
+            statusMessage: '已成功存檔至 Firebase 雲端與本機',
+            firebaseConnected: true,
+          },
+        }));
+        showToast('✅ 已成功將所有記錄儲存至 Firebase 雲端資料庫與本機！');
+      } else {
+        saveAppData(appData);
+        showToast('✅ 已安全儲存於本機快取');
+      }
+    } catch (e: any) {
+      saveAppData(appData);
+      showToast('✅ 已儲存於本機快取');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Push to Cloud Handler (Manual or auto from modal)
   const handlePushSync = async () => {
-    const res = await pushToCloud(appData);
+    const res = await pushCloudBackup(appData);
     if (res.success) {
-      if (res.lastSyncedAt) {
-        lastProcessedRemoteUpdatedAtRef.current = res.lastSyncedAt;
+      if (res.updatedAt) {
+        lastProcessedRemoteUpdatedAtRef.current = res.updatedAt;
       }
       setAppData((prev) => ({
         ...prev,
         syncInfo: {
           ...prev.syncInfo,
-          lastSyncedAt: res.lastSyncedAt || new Date().toISOString(),
+          lastSyncedAt: res.updatedAt || new Date().toISOString(),
           version: res.version || prev.syncInfo.version + 1,
           firebaseConnected: true,
         },
@@ -148,10 +256,11 @@ export default function App() {
 
   // Pull from Cloud Handler
   const handlePullSync = async (syncCode: string): Promise<boolean> => {
-    const res = await pullFromCloud(syncCode);
+    const res = await pullCloudBackup(syncCode);
     if (res.success && res.data) {
       lastProcessedRemoteUpdatedAtRef.current = res.data.syncInfo?.lastSyncedAt || null;
       setAppData(res.data);
+      saveAppData(res.data);
       showToast(`🔥 已成功自 Firebase 載入最新資料 (${syncCode})！`);
       return true;
     }
@@ -160,29 +269,42 @@ export default function App() {
 
   // Update Sync Code
   const handleUpdateSyncCode = (newCode: string) => {
-    setAppData((prev) => ({
-      ...prev,
-      syncInfo: {
-        ...prev.syncInfo,
-        syncCode: newCode,
-      },
-    }));
+    setAppData((prev) => {
+      const nextState: AppDataStore = {
+        ...prev,
+        syncInfo: {
+          ...prev.syncInfo,
+          syncCode: newCode,
+        },
+      };
+      persistAndSync(nextState, true);
+      return nextState;
+    });
     showToast(`已設定新家庭同步碼：${newCode}`);
   };
 
   // Restore from File
   const handleRestoreFromFile = (importedData: AppDataStore) => {
     setAppData(importedData);
-    showToast('已成功還原全部記錄！');
+    persistAndSync(importedData, true, '已成功還原全部記錄並備份！');
   };
 
   // Profile Save
   const handleSaveProfile = (updatedProfile: BabyProfile) => {
-    setAppData((prev) => ({
-      ...prev,
-      babyProfile: updatedProfile,
-    }));
-    showToast('已更新寶寶基本資料！');
+    setAppData((prev) => {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
+        ...prev,
+        babyProfile: updatedProfile,
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      };
+      persistAndSync(nextState, true, '已更新寶寶基本資料並同步至雲端！');
+      return nextState;
+    });
   };
 
   // Growth Record Actions
@@ -192,12 +314,22 @@ export default function App() {
       const updated = exists
         ? prev.growthRecords.map((r) => (r.id === newRec.id ? newRec : r))
         : [...prev.growthRecords, newRec];
-      return {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
         ...prev,
         growthRecords: updated,
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
       };
+      const msg = editingGrowthRecord 
+        ? '已更新生長記錄並同步至雲端！' 
+        : `已儲存生長記錄：體重 ${newRec.weight}kg (P${newRec.percentileWeight}) 並備份！`;
+      persistAndSync(nextState, true, msg);
+      return nextState;
     });
-    showToast(editingGrowthRecord ? '已更新生長記錄！' : `已儲存生長記錄：體重 ${newRec.weight}kg (P${newRec.percentileWeight})`);
     setEditingGrowthRecord(null);
   };
 
@@ -207,11 +339,20 @@ export default function App() {
   };
 
   const handleDeleteGrowthRecord = (id: string) => {
-    setAppData((prev) => ({
-      ...prev,
-      growthRecords: prev.growthRecords.filter((r) => r.id !== id),
-    }));
-    showToast('已刪除該筆生長記錄');
+    setAppData((prev) => {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
+        ...prev,
+        growthRecords: prev.growthRecords.filter((r) => r.id !== id),
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      };
+      persistAndSync(nextState, true, '已刪除該筆生長記錄');
+      return nextState;
+    });
   };
 
   // Vaccine Actions
@@ -221,12 +362,20 @@ export default function App() {
       const updated = exists
         ? prev.vaccineRecords.map((r) => (r.id === record.id ? record : r))
         : [...prev.vaccineRecords, record];
-      return {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
         ...prev,
         vaccineRecords: updated,
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
       };
+      const msg = record.isCompleted ? `🎉 已完成接種：${record.vaccineName}（已存檔）！` : `已更新：${record.vaccineName}`;
+      persistAndSync(nextState, true, msg);
+      return nextState;
     });
-    showToast(record.isCompleted ? `🎉 已完成接種：${record.vaccineName}！` : `已更新：${record.vaccineName}`);
   };
 
   const handleUpdateVaccineRecord = (record: VaccineRecord) => {
@@ -235,12 +384,19 @@ export default function App() {
       const updated = exists
         ? prev.vaccineRecords.map((r) => (r.id === record.id ? record : r))
         : [...prev.vaccineRecords, record];
-      return {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
         ...prev,
         vaccineRecords: updated,
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
       };
+      persistAndSync(nextState, true, `已儲存【${record.vaccineName}】詳細醫囑與批號！`);
+      return nextState;
     });
-    showToast(`已儲存【${record.vaccineName}】詳細醫囑與批號！`);
   };
 
   // Diary Actions
@@ -250,12 +406,20 @@ export default function App() {
       const updated = exists
         ? prev.diaryEntries.map((e) => (e.id === newEntry.id ? newEntry : e))
         : [newEntry, ...prev.diaryEntries];
-      return {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
         ...prev,
         diaryEntries: updated,
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
       };
+      const msg = editingDiaryEntry ? '📔 日記記錄已成功更新並同步！' : '📔 溫馨日記已發佈並同步存檔！';
+      persistAndSync(nextState, true, msg);
+      return nextState;
     });
-    showToast(editingDiaryEntry ? '📔 日記記錄已成功更新！' : '📔 溫馨日記已發佈！');
     setEditingDiaryEntry(null);
   };
 
@@ -266,11 +430,20 @@ export default function App() {
   };
 
   const handleDeleteDiaryEntry = (id: string) => {
-    setAppData((prev) => ({
-      ...prev,
-      diaryEntries: prev.diaryEntries.filter((e) => e.id !== id),
-    }));
-    showToast('已刪除該篇日記');
+    setAppData((prev) => {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
+        ...prev,
+        diaryEntries: prev.diaryEntries.filter((e) => e.id !== id),
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      };
+      persistAndSync(nextState, true, '已刪除該篇日記');
+      return nextState;
+    });
   };
 
   const handleQuickLog = (category: DiaryCategory) => {
@@ -286,12 +459,20 @@ export default function App() {
       const updated = exists
         ? prev.medicalVisits.map((v) => (v.id === newVisit.id ? newVisit : v))
         : [newVisit, ...prev.medicalVisits];
-      return {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
         ...prev,
         medicalVisits: updated,
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
       };
+      const msg = editingMedicalVisit ? '🏥 已更新就診與用藥紀錄並存檔！' : `已儲存 ${newVisit.clinicName} 就診與用藥紀錄！`;
+      persistAndSync(nextState, true, msg);
+      return nextState;
     });
-    showToast(editingMedicalVisit ? '🏥 已更新就診與用藥紀錄！' : `已儲存 ${newVisit.clinicName} 就診與用藥紀錄！`);
     setEditingMedicalVisit(null);
   };
 
@@ -301,11 +482,20 @@ export default function App() {
   };
 
   const handleDeleteMedicalVisit = (id: string) => {
-    setAppData((prev) => ({
-      ...prev,
-      medicalVisits: prev.medicalVisits.filter((v) => v.id !== id),
-    }));
-    showToast('已刪除該門診就診紀錄');
+    setAppData((prev) => {
+      const nextVer = (prev.syncInfo?.version || 1) + 1;
+      const nextState: AppDataStore = {
+        ...prev,
+        medicalVisits: prev.medicalVisits.filter((v) => v.id !== id),
+        syncInfo: {
+          ...prev.syncInfo,
+          version: nextVer,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      };
+      persistAndSync(nextState, true, '已刪除該門診就診紀錄');
+      return nextState;
+    });
   };
 
   return (
@@ -325,6 +515,8 @@ export default function App() {
         onSelectTab={setActiveTab}
         syncCode={appData.syncInfo.syncCode}
         onOpenCloudSync={() => setIsCloudSyncOpen(true)}
+        isSaving={isSaving}
+        onManualSave={handleManualSave}
       />
 
       {/* Main Application Content Container */}
@@ -340,6 +532,9 @@ export default function App() {
           onOpenFamilyGroup={() => setIsFamilyGroupOpen(true)}
           onOpenGrowthTracker={() => setActiveTab('growth')}
           onOpenVaccineTracker={() => setActiveTab('vaccines')}
+          syncInfo={appData.syncInfo}
+          onManualSave={handleManualSave}
+          isSaving={isSaving}
         />
 
         {/* Tab Views */}

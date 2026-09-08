@@ -49,8 +49,19 @@ export const INITIAL_DIARY_ENTRIES: DiaryEntry[] = [];
 
 export const INITIAL_MEDICAL_VISITS: MedicalVisit[] = [];
 
+export const PRIMARY_DEFAULT_SYNC_CODE = 'BABY-PRIMARY';
+
 export function getInitialAppData(): AppDataStore {
   const birthDate = new Date();
+  let savedCode = PRIMARY_DEFAULT_SYNC_CODE;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      savedCode = window.localStorage.getItem('BABY_HEALTH_SYNC_CODE_V2') || PRIMARY_DEFAULT_SYNC_CODE;
+    }
+  } catch (e) {
+    // ignore
+  }
+
   return {
     babyProfile: {
       ...INITIAL_BABY_PROFILE,
@@ -61,7 +72,7 @@ export function getInitialAppData(): AppDataStore {
     diaryEntries: INITIAL_DIARY_ENTRIES,
     medicalVisits: INITIAL_MEDICAL_VISITS,
     syncInfo: {
-      syncCode: 'BABY-' + Math.floor(1000 + Math.random() * 9000),
+      syncCode: savedCode,
       lastSyncedAt: new Date().toISOString(),
       version: 1,
       isSyncing: false,

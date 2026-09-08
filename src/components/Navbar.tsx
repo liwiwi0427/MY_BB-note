@@ -6,7 +6,9 @@ import {
   Syringe, 
   Stethoscope, 
   Sparkles,
-  Baby
+  Baby,
+  Cloud,
+  CloudCheck
 } from 'lucide-react';
 
 export type TabType = 'diary' | 'io' | 'growth' | 'vaccines' | 'medical' | 'tools';
@@ -16,11 +18,17 @@ interface NavbarProps {
   onSelectTab: (tab: TabType) => void;
   syncCode?: string;
   onOpenCloudSync?: () => void;
+  isSaving?: boolean;
+  onManualSave?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
+  syncCode,
+  onOpenCloudSync,
+  isSaving,
+  onManualSave,
 }) => {
   const navItems: {
     id: TabType;
@@ -131,8 +139,44 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
 
-            {/* Desktop Navigation Tabs */}
+            {/* Navigation Tabs & Cloud Sync Status */}
             <div className="flex items-center gap-2">
+              {onManualSave && (
+                <button
+                  type="button"
+                  onClick={onManualSave}
+                  disabled={isSaving}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-sans tracking-wide transition-all border shadow-2xs active:scale-95 ${
+                    isSaving
+                      ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse cursor-wait'
+                      : 'bg-[#F2EDE4] hover:bg-[#E6DFD1] text-[#4A453E] border-[#D9D1C2]'
+                  }`}
+                  title="立即儲存最新資料至 Firebase 雲端與本機"
+                >
+                  {isSaving ? (
+                    <Cloud className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                  ) : (
+                    <CloudCheck className="w-3.5 h-3.5 text-emerald-700" />
+                  )}
+                  <span className="text-[11px] sm:text-xs font-medium font-sans">
+                    {isSaving ? '存檔中...' : '已儲存'}
+                  </span>
+                </button>
+              )}
+
+              {onOpenCloudSync && (
+                <button
+                  type="button"
+                  onClick={onOpenCloudSync}
+                  className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-sans text-[#7A7367] hover:text-[#2A2723] hover:bg-[#EFEAE1] transition-colors"
+                  title="查看家庭雲端同步碼與同步設定"
+                >
+                  <span className="font-mono text-[11px] bg-white/70 px-1.5 py-0.5 rounded border border-[#EBE7DF]">
+                    {syncCode ? `#${syncCode.slice(-4)}` : '雲端設定'}
+                  </span>
+                </button>
+              )}
+
               <nav className="hidden md:flex items-center space-x-1.5 bg-[#F2EDE4] p-1.5 rounded-full border border-[#EBE7DF] shadow-2xs">
                 {navItems.map((item) => {
                   const Icon = item.icon;

@@ -9,14 +9,27 @@ import {
 } from './firebase';
 
 const LOCAL_STORAGE_KEY = 'BABY_HEALTH_DIARY_APP_STATE_V2';
+const FALLBACK_KEYS = [
+  'BABY_HEALTH_DIARY_APP_STATE_V2',
+  'BABY_HEALTH_DIARY_APP_STATE_V1',
+  'BABY_HEALTH_DIARY_APP_STATE',
+];
+export const SYNC_CODE_STORAGE_KEY = 'BABY_HEALTH_SYNC_CODE_V2';
 
 export function loadStoredAppData(): AppDataStore {
   try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.babyProfile && parsed.growthRecords) {
-        return parsed;
+    for (const key of FALLBACK_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.babyProfile && Array.isArray(parsed.growthRecords)) {
+          // Preserve or restore persistent syncCode
+          const savedCode = localStorage.getItem(SYNC_CODE_STORAGE_KEY);
+          if (savedCode && parsed.syncInfo) {
+            parsed.syncInfo.syncCode = savedCode;
+          }
+          return parsed;
+        }
       }
     }
   } catch (err) {
@@ -32,6 +45,9 @@ export const loadAppData = loadStoredAppData;
 export function saveStoredAppData(data: AppDataStore): void {
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+    if (data.syncInfo?.syncCode) {
+      localStorage.setItem(SYNC_CODE_STORAGE_KEY, data.syncInfo.syncCode);
+    }
   } catch (err) {
     console.error('Error saving app data to localStorage:', err);
   }
@@ -137,9 +153,20 @@ export async function pushCloudBackup(
   try {
     const fbRes = await pushBabyDataToFirebase(code, data, data.syncInfo.deviceName);
     if (fbRes.success) {
+      // Also back up to Express server disk in the background for dual persistence
+      fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          syncCode: code,
+          babyData: data,
+          deviceName: data.syncInfo.deviceName || '家長行動裝置',
+        }),
+      }).catch((e) => console.warn('Secondary server backup notice:', e));
+
       return {
         success: true,
-        message: '已成功透過 Firebase 雲端資料庫完成即時同步備份！',
+        message: '已成功存檔並同步至 Firebase 雲端資料庫與伺服器！',
         updatedAt: fbRes.updatedAt || timestamp,
         lastSyncedAt: fbRes.updatedAt || timestamp,
         version: fbRes.version || newVersion,
