@@ -203,8 +203,8 @@ export function calculatePercentile(
     return Math.round(50 + t * 35);
   }
   if (value <= ref.p97) {
-    const t紧 = (value - ref.p85) / (ref.p97 - ref.p85);
-    return Math.round(85 + t紧 * 12);
+    const t = (value - ref.p85) / (ref.p97 - ref.p85);
+    return Math.round(85 + t * 12);
   }
   // Above P97
   return Math.min(99, Math.round(97 + (value - ref.p97) * 2));

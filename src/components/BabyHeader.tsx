@@ -31,6 +31,7 @@ interface BabyHeaderProps {
   syncInfo?: AppDataStore['syncInfo'];
   onManualSave?: () => void;
   isSaving?: boolean;
+  onAddGrowth?: () => void;
 }
 
 export const BabyHeader: React.FC<BabyHeaderProps> = ({
@@ -45,6 +46,7 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
   syncInfo,
   onManualSave,
   isSaving,
+  onAddGrowth,
 }) => {
   const ageDetails = getBabyAgeDetails(babyProfile.birthday);
 
@@ -171,12 +173,23 @@ export const BabyHeader: React.FC<BabyHeaderProps> = ({
               </button>
             )}
 
+            {onAddGrowth && (
+              <button
+                onClick={onAddGrowth}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-sans tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-xs transition-all active:scale-95 font-bold cursor-pointer"
+                title="立即輸入最新生長數據（體重、身長、頭圍）"
+              >
+                <Weight className="w-3.5 h-3.5 text-amber-300" strokeWidth={1.75} />
+                <span>生長輸入</span>
+              </button>
+            )}
+
             <button
               onClick={onOpenPediatricReport}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-xs transition-all active:scale-95 font-bold"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-sans uppercase tracking-wider bg-[#F9F6F0] text-[#2A2723] border border-[#D1CEC4] hover:bg-[#F2EDE4] shadow-xs transition-all active:scale-95 font-bold"
               title="產生兒科就診專用報告 (支援 I/O 與 Vital Sign 區間選擇)"
             >
-              <FileText className="w-3.5 h-3.5 text-[#D9D1C2]" strokeWidth={1.75} />
+              <FileText className="w-3.5 h-3.5 text-[#8C8475]" strokeWidth={1.75} />
               <span>就醫報告</span>
             </button>
 

@@ -535,6 +535,10 @@ export default function App() {
           syncInfo={appData.syncInfo}
           onManualSave={handleManualSave}
           isSaving={isSaving}
+          onAddGrowth={() => {
+            setEditingGrowthRecord(null);
+            setIsAddGrowthOpen(true);
+          }}
         />
 
         {/* Tab Views */}
@@ -551,6 +555,10 @@ export default function App() {
             onEditDiary={handleOpenEditDiaryEntry}
             onDeleteDiary={handleDeleteDiaryEntry}
             onOpenTotalIO={() => setActiveTab('io')}
+            onAddGrowth={() => {
+              setEditingGrowthRecord(null);
+              setIsAddGrowthOpen(true);
+            }}
           />
         )}
 

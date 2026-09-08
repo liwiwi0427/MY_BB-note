@@ -21,7 +21,8 @@ import {
   ArrowRight,
   Search,
   X,
-  Edit3
+  Edit3,
+  Weight
 } from 'lucide-react';
 import { BabyProfile, DiaryCategory, DiaryEntry, BabyMood } from '../types';
 import { calculateDailyIO } from '../utils/ioCalculator';
@@ -34,6 +35,7 @@ interface DiaryJournalProps {
   onEditDiary?: (entry: DiaryEntry) => void;
   onDeleteDiary: (id: string) => void;
   onOpenTotalIO?: () => void;
+  onAddGrowth?: () => void;
 }
 
 export const DiaryJournal: React.FC<DiaryJournalProps> = ({
@@ -44,6 +46,7 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
   onEditDiary,
   onDeleteDiary,
   onOpenTotalIO,
+  onAddGrowth,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -261,10 +264,10 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
         </div>
 
         {/* Quick Routine Shortcut Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6">
           <button
             onClick={() => onQuickLog('feeding')}
-            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#F5EEDB] hover:bg-[#EDE3CB] text-[#2A2723] border border-[#E5DBBF] transition-all group text-left"
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#F5EEDB] hover:bg-[#EDE3CB] text-[#2A2723] border border-[#E5DBBF] transition-all group text-left cursor-pointer active:scale-95"
           >
             <span className="text-[10px] font-sans uppercase tracking-widest text-[#8C8475] mb-2">飲食紀錄</span>
             <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
@@ -275,7 +278,7 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
 
           <button
             onClick={() => onQuickLog('diaper')}
-            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#E6EBE6] hover:bg-[#D8E2D8] text-[#2A2723] border border-[#D5DDD5] transition-all group text-left"
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#E6EBE6] hover:bg-[#D8E2D8] text-[#2A2723] border border-[#D5DDD5] transition-all group text-left cursor-pointer active:scale-95"
           >
             <span className="text-[10px] font-sans uppercase tracking-widest text-[#6E7D6E] mb-2">尿布排便</span>
             <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
@@ -286,7 +289,7 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
 
           <button
             onClick={() => onQuickLog('sleep')}
-            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#E6E9F2] hover:bg-[#D9DEEE] text-[#2A2723] border border-[#D5D9E6] transition-all group text-left"
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#E6E9F2] hover:bg-[#D9DEEE] text-[#2A2723] border border-[#D5D9E6] transition-all group text-left cursor-pointer active:scale-95"
           >
             <span className="text-[10px] font-sans uppercase tracking-widest text-[#757E94] mb-2">睡眠時長</span>
             <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
@@ -297,7 +300,7 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
 
           <button
             onClick={() => onQuickLog('temperature')}
-            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#F2E6E6] hover:bg-[#E8D7D7] text-[#2A2723] border border-[#E0D0D0] transition-all group text-left"
+            className="flex flex-col justify-between p-4 rounded-[24px] bg-[#F2E6E6] hover:bg-[#E8D7D7] text-[#2A2723] border border-[#E0D0D0] transition-all group text-left cursor-pointer active:scale-95"
           >
             <span className="text-[10px] font-sans uppercase tracking-widest text-[#947575] mb-2">體溫監測</span>
             <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
@@ -305,6 +308,19 @@ export const DiaryJournal: React.FC<DiaryJournalProps> = ({
               <span>快速量體溫</span>
             </div>
           </button>
+
+          {onAddGrowth && (
+            <button
+              onClick={onAddGrowth}
+              className="flex flex-col justify-between p-4 rounded-[24px] bg-[#F9F6F0] hover:bg-[#EFE9DD] text-[#2A2723] border border-[#D9D1C2] transition-all group text-left cursor-pointer active:scale-95 col-span-2 sm:col-span-1"
+            >
+              <span className="text-[10px] font-sans uppercase tracking-widest text-[#8C8475] mb-2">生長發育</span>
+              <div className="flex items-center gap-1.5 font-serif font-semibold text-base">
+                <Weight className="w-4 h-4 text-[#2A2723]" strokeWidth={1.5} />
+                <span>快速記生長</span>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* TODAY TOTAL I/O QUICK WIDGET BAR */}

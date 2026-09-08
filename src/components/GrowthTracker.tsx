@@ -107,7 +107,8 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
   };
 
   const scaleY = (val: number) => {
-    const clamped = Math.max(metricConfig.minY, Math.min(metricConfig.maxY, val));
+    const num = typeof val === 'number' && !isNaN(val) ? val : metricConfig.minY;
+    const clamped = Math.max(metricConfig.minY, Math.min(metricConfig.maxY, num));
     const ratio = (clamped - metricConfig.minY) / (metricConfig.maxY - metricConfig.minY);
     return height - padding.bottom - ratio * plotHeight;
   };
@@ -132,10 +133,15 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
     return `M ${forward.join(' L ')} L ${backward.join(' L ')} Z`;
   };
 
+  // Filter records that have a positive value for the selected metric
+  const validRecordsForMetric = useMemo(() => {
+    return sortedRecords.filter((r) => typeof r[selectedMetric] === 'number' && r[selectedMetric] > 0);
+  }, [sortedRecords, selectedMetric]);
+
   // Generate path for baby actual measurements
   const babyPath = useMemo(() => {
-    if (sortedRecords.length === 0) return '';
-    return sortedRecords
+    if (validRecordsForMetric.length === 0) return '';
+    return validRecordsForMetric
       .map((r, idx) => {
         const val = r[selectedMetric];
         const x = scaleX(r.ageMonths);
@@ -143,11 +149,13 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
         return idx === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
       })
       .join(' ');
-  }, [sortedRecords, selectedMetric]);
+  }, [validRecordsForMetric, selectedMetric]);
 
-  const latestVal = latestRecord ? latestRecord[selectedMetric] : null;
-  const latestPct = latestRecord
-    ? calculatePercentile(latestRecord[selectedMetric], latestRecord.ageMonths, selectedMetric, selectedGender)
+  const latestVal = latestRecord && typeof latestRecord[selectedMetric] === 'number' && latestRecord[selectedMetric] > 0
+    ? latestRecord[selectedMetric]
+    : null;
+  const latestPct = latestVal !== null && latestRecord
+    ? calculatePercentile(latestVal, latestRecord.ageMonths, selectedMetric, selectedGender)
     : null;
   const latestInterp = latestPct !== null ? getPercentileInterpretation(latestPct) : null;
 
@@ -198,10 +206,11 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
           <button
             id="add-growth-record-btn"
             onClick={onAddRecord}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-sm transition-all"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-full text-xs font-sans uppercase tracking-wider bg-[#2A2723] text-[#F9F6F0] hover:bg-[#3D3833] shadow-sm transition-all font-bold cursor-pointer active:scale-95"
+            title="開啟生長發育輸入視窗"
           >
-            <Plus className="w-4 h-4" />
-            <span>記錄新數據</span>
+            <Plus className="w-4 h-4 text-amber-300" />
+            <span>輸入生長發育數據</span>
           </button>
         </div>
       </div>
@@ -434,7 +443,7 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
             )}
 
             {/* Baby Trajectory Points */}
-            {sortedRecords.map((record) => {
+            {validRecordsForMetric.map((record) => {
               const val = record[selectedMetric];
               const cx = scaleX(record.ageMonths);
               const cy = scaleY(val);
@@ -534,10 +543,10 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
           </h3>
           <button
             onClick={onAddRecord}
-            className="text-xs font-sans uppercase tracking-wider text-[#2A2723] hover:text-[#4A453E] flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#F2EDE4] border border-[#D9D1C2]"
+            className="text-xs font-sans uppercase tracking-wider text-[#2A2723] hover:text-[#4A453E] flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#F2EDE4] hover:bg-[#E6DFD1] border border-[#D9D1C2] font-medium cursor-pointer transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
-            新增記錄
+            <Plus className="w-3.5 h-3.5 text-amber-700" />
+            <span>輸入生長數據</span>
           </button>
         </div>
 
@@ -559,8 +568,18 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
               {sortedRecords.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-[#8C8475] font-sans">
-                    <p className="text-sm">尚無生長測量數據</p>
-                    <p className="text-xs text-[#A69D8D] mt-1">點擊右上角「新增記錄」開始追蹤寶寶的身長、體重與頭圍生長曲線</p>
+                    <div className="max-w-md mx-auto space-y-3">
+                      <p className="text-sm font-medium text-[#2A2723]">尚無生長測量數據</p>
+                      <p className="text-xs text-[#A69D8D]">點擊下方按鈕開始記錄寶寶的身長、體重與頭圍，系統將自動比對 WHO 兒童生長常模曲線！</p>
+                      <button
+                        type="button"
+                        onClick={onAddRecord}
+                        className="mt-2 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#2A2723] hover:bg-[#3D3833] text-[#F9F6F0] text-xs font-sans uppercase tracking-wider font-bold shadow-sm transition-all cursor-pointer active:scale-95"
+                      >
+                        <Plus className="w-4 h-4 text-amber-300" />
+                        <span>立即輸入第一筆生長數據</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -627,6 +646,18 @@ export const GrowthTracker: React.FC<GrowthTrackerProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Floating Quick-Add Button */}
+      <div className="sm:hidden fixed bottom-20 right-4 z-30">
+        <button
+          type="button"
+          onClick={onAddRecord}
+          className="flex items-center gap-2 px-5 py-3 rounded-full bg-[#2A2723] text-[#F9F6F0] shadow-xl border border-[#D9D1C2]/30 active:scale-95 font-bold text-xs"
+        >
+          <Plus className="w-4 h-4 text-amber-300" />
+          <span>輸入生長數據</span>
+        </button>
       </div>
 
     </div>
